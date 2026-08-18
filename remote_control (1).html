@@ -1,0 +1,376 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+<title>Brandscape Remote</title>
+<link href="https://fonts.googleapis.com/css2?family=Playfair+Display:wght@600&family=Josefin+Sans:wght@300;400;600&display=swap" rel="stylesheet">
+<script src="https://cdnjs.cloudflare.com/ajax/libs/mqtt/5.15.2/mqtt.min.js"></script>
+<style>
+  :root { --navy:#222A68; --accent:#14275C; --yellow:#FEDD79; --cream:#FDF6E3; }
+  * { margin:0; padding:0; box-sizing:border-box; -webkit-tap-highlight-color: transparent; }
+  html, body { height:100%; overscroll-behavior:none; }
+  body {
+    background: var(--navy);
+    font-family:'Josefin Sans',sans-serif;
+    color:#fff;
+    display:flex; flex-direction:column;
+    padding:18px 18px calc(18px + env(safe-area-inset-bottom));
+    min-height:100%;
+    user-select:none;
+  }
+  header { text-align:center; margin-bottom:14px; }
+  h1 { font-family:'Playfair Display',serif; font-size:1.25rem; font-weight:600; }
+  .status {
+    display:inline-flex; align-items:center; gap:6px; margin-top:6px;
+    font-size:0.6rem; letter-spacing:0.15em; text-transform:uppercase; color:rgba(255,255,255,0.55);
+  }
+  .status .dot { width:7px; height:7px; border-radius:50%; background:#e05252; transition:background 0.3s ease; }
+  .status.on .dot { background:#5fd68a; box-shadow:0 0 8px #5fd68a; }
+
+  .topic-row {
+    display:flex; gap:8px; align-items:center; margin-bottom:16px;
+    font-size:0.62rem; color:rgba(255,255,255,0.6);
+  }
+  .topic-row input {
+    flex:1; background:rgba(255,255,255,0.08); border:1px solid rgba(255,255,255,0.18);
+    border-radius:8px; padding:8px 10px; color:#fff; font-size:0.68rem; font-family:'Josefin Sans',sans-serif;
+  }
+  .topic-row button {
+    background:var(--yellow); color:var(--navy); border:none; border-radius:8px;
+    padding:8px 12px; font-size:0.62rem; letter-spacing:0.1em; text-transform:uppercase; font-weight:600;
+  }
+
+  section { margin-bottom:20px; }
+  .label {
+    font-size:0.6rem; letter-spacing:0.25em; text-transform:uppercase;
+    color:rgba(255,255,255,0.5); margin-bottom:10px; text-align:center;
+  }
+
+  /* Navigate */
+  .nav-row { display:flex; gap:12px; }
+  .nav-btn {
+    flex:1; background:rgba(255,255,255,0.08); border:1px solid rgba(255,255,255,0.15);
+    border-radius:16px; padding:20px 0; color:#fff; font-size:1.4rem;
+    display:flex; align-items:center; justify-content:center;
+    transition: background 0.12s ease, transform 0.12s ease;
+  }
+  .nav-btn:active { background:var(--yellow); color:var(--navy); transform:scale(0.96); }
+
+  /* Select */
+  .select-btn {
+    width:100%; padding:22px 0; border-radius:18px; border:none;
+    background:linear-gradient(160deg, #FFEAA3 0%, var(--yellow) 55%, #D9AE3E 100%);
+    color:var(--navy); font-family:'Josefin Sans',sans-serif; font-weight:600;
+    font-size:0.85rem; letter-spacing:0.15em; text-transform:uppercase;
+    box-shadow:0 8px 20px rgba(0,0,0,0.35);
+    transition: transform 0.12s ease;
+  }
+  .select-btn:active { transform:scale(0.97); }
+
+  /* Dial */
+  .dial-wrap { display:flex; flex-direction:column; align-items:center; gap:10px; }
+  .dial {
+    width:150px; height:150px; border-radius:50%;
+    background: radial-gradient(circle at 35% 30%, #2c3a80, #14275C 70%);
+    border:2px solid rgba(255,255,255,0.18);
+    position:relative; touch-action:none;
+    box-shadow: inset 0 4px 14px rgba(0,0,0,0.4), 0 8px 20px rgba(0,0,0,0.3);
+  }
+  .dial-knob {
+    position:absolute; top:50%; left:50%; width:10px; height:10px; border-radius:50%;
+    background:var(--yellow); box-shadow:0 0 10px rgba(254,221,121,0.8);
+    transform-origin: 4px 60px;
+    margin:-4px 0 0 -4px;
+  }
+  .dial-value {
+    font-size:0.65rem; letter-spacing:0.15em; color:rgba(255,255,255,0.65); text-transform:uppercase;
+  }
+
+  /* Linear slider */
+  .slider-wrap { display:flex; flex-direction:column; gap:10px; }
+  .slider-track-remote {
+    position:relative; width:100%; height:44px;
+    background: rgba(255,255,255,0.06);
+    border: 1px solid rgba(255,255,255,0.15);
+    border-radius: 22px;
+    touch-action: none;
+  }
+  .slider-fill-remote {
+    position:absolute; left:0; top:0; bottom:0; width:50%;
+    background: linear-gradient(90deg, rgba(254,221,121,0.25), rgba(254,221,121,0.5));
+    border-radius: 22px;
+    pointer-events: none;
+  }
+  .slider-thumb-remote {
+    position:absolute; top:50%; width:34px; height:34px; margin:-17px 0 0 -17px;
+    left:50%;
+    border-radius:50%;
+    background:var(--yellow);
+    box-shadow:0 2px 8px rgba(0,0,0,0.4);
+    cursor: grab;
+  }
+  .slider-thumb-remote.dragging { cursor: grabbing; }
+  .slider-value-remote {
+    font-size:0.65rem; letter-spacing:0.15em; color:rgba(255,255,255,0.65); text-transform:uppercase; text-align:center;
+  }
+
+  /* Brush pad */
+  .pad {
+    width:100%; aspect-ratio: 4/3; border-radius:18px;
+    background: repeating-linear-gradient(45deg, rgba(255,255,255,0.05) 0 10px, rgba(255,255,255,0.02) 10px 20px);
+    border:1px dashed rgba(255,255,255,0.25);
+    display:flex; align-items:center; justify-content:center;
+    touch-action:none; position:relative; overflow:hidden;
+  }
+  .pad-hint {
+    font-size:0.62rem; letter-spacing:0.15em; text-transform:uppercase; color:rgba(255,255,255,0.35);
+    pointer-events:none;
+  }
+  .pad-dot {
+    position:absolute; width:26px; height:26px; border-radius:50%;
+    background:rgba(254,221,121,0.35); border:1.5px solid var(--yellow);
+    transform:translate(-50%,-50%); pointer-events:none; opacity:0; transition:opacity 0.15s ease;
+  }
+
+  .reset-row { display:flex; justify-content:center; }
+  .reset-btn {
+    background:transparent; border:1px solid rgba(255,255,255,0.3); color:rgba(255,255,255,0.8);
+    border-radius:999px; padding:10px 26px; font-size:0.62rem; letter-spacing:0.2em; text-transform:uppercase;
+  }
+  .reset-btn:active { background:rgba(255,255,255,0.12); }
+
+  .log {
+    margin-top:auto; padding-top:14px; font-size:0.56rem; color:rgba(255,255,255,0.35);
+    text-align:center; letter-spacing:0.05em;
+  }
+</style>
+</head>
+<body>
+
+<header>
+  <h1>Brandscape Remote</h1>
+  <div class="status" id="statusEl"><span class="dot"></span><span id="statusText">Connecting…</span></div>
+</header>
+
+<div class="topic-row">
+  <input id="topicInput" value="hyd-experience-remote" spellcheck="false">
+  <button id="topicBtn" type="button">Set</button>
+</div>
+
+<section>
+  <div class="label">Navigate</div>
+  <div class="nav-row">
+    <button class="nav-btn" id="prevBtn" type="button">◀</button>
+    <button class="nav-btn" id="nextBtn" type="button">▶</button>
+  </div>
+</section>
+
+<section>
+  <div class="label">Select — click / hover booths</div>
+  <button class="select-btn" id="selectBtn" type="button">Select</button>
+</section>
+
+<section>
+  <div class="label">Dial — dial-regulated booths</div>
+  <div class="dial-wrap">
+    <div class="dial" id="dial"><div class="dial-knob" id="dialKnob"></div></div>
+    <div class="dial-value" id="dialValue">50</div>
+  </div>
+</section>
+
+<section>
+  <div class="label">Slider — sequence booths</div>
+  <div class="slider-wrap">
+    <div class="slider-track-remote" id="sliderTrack">
+      <div class="slider-fill-remote" id="sliderFillRemote"></div>
+      <div class="slider-thumb-remote" id="sliderThumbRemote"></div>
+    </div>
+    <div class="slider-value-remote" id="sliderValueRemote">50</div>
+  </div>
+</section>
+
+<section>
+  <div class="label">Brush — touch and drag</div>
+  <div class="pad" id="pad">
+    <span class="pad-hint">Drag here</span>
+    <div class="pad-dot" id="padDot"></div>
+  </div>
+</section>
+
+<div class="reset-row">
+  <button class="reset-btn" id="resetBtn" type="button">Reset current booth</button>
+</div>
+
+<div class="log" id="logEl">—</div>
+
+<script>
+const statusEl = document.getElementById('statusEl');
+const statusText = document.getElementById('statusText');
+const topicInput = document.getElementById('topicInput');
+const topicBtn = document.getElementById('topicBtn');
+const logEl = document.getElementById('logEl');
+
+let topicBase = topicInput.value.trim();
+let client = null;
+
+function log(msg) { logEl.textContent = msg; }
+
+function connect() {
+  if (client) { try { client.end(true); } catch(e){} }
+  statusEl.classList.remove('on');
+  statusText.textContent = 'Connecting…';
+  client = mqtt.connect('wss://broker.hivemq.com:8884/mqtt', { clientId: 'remote-' + Math.random().toString(16).slice(2) });
+  client.on('connect', () => {
+    statusEl.classList.add('on');
+    statusText.textContent = 'Connected · ' + topicBase;
+    log('Ready. Open a booth page on the same topic to link them.');
+  });
+  client.on('error', () => { statusText.textContent = 'Connection error'; });
+  client.on('close', () => { statusEl.classList.remove('on'); statusText.textContent = 'Disconnected'; });
+}
+
+function send(payload) {
+  if (!client || !client.connected) { log('Not connected yet'); return; }
+  client.publish(topicBase + '/remote', JSON.stringify(payload));
+  log(JSON.stringify(payload));
+}
+
+topicBtn.addEventListener('click', () => {
+  topicBase = topicInput.value.trim() || 'hyd-experience-remote';
+  connect();
+});
+
+connect();
+
+// Navigate
+document.getElementById('prevBtn').addEventListener('click', () => send({ action:'nav', dir:'prev' }));
+document.getElementById('nextBtn').addEventListener('click', () => send({ action:'nav', dir:'next' }));
+
+// Select
+document.getElementById('selectBtn').addEventListener('click', () => send({ action:'select' }));
+
+// Reset
+document.getElementById('resetBtn').addEventListener('click', () => send({ action:'reset' }));
+
+// Dial — drag around the circle, accumulates a 0-100 value
+const dial = document.getElementById('dial');
+const dialKnob = document.getElementById('dialKnob');
+const dialValueEl = document.getElementById('dialValue');
+let dialValue = 50;
+let dialAngle = 0;
+let dragging = false;
+let lastAngle = null;
+let lastSend = 0;
+
+function angleFromEvent(clientX, clientY) {
+  const rect = dial.getBoundingClientRect();
+  const cx = rect.left + rect.width/2, cy = rect.top + rect.height/2;
+  return Math.atan2(clientY - cy, clientX - cx);
+}
+function setDialVisual() {
+  dialKnob.style.transform = `rotate(${dialAngle}rad)`;
+  dialValueEl.textContent = Math.round(dialValue);
+}
+function dialMove(clientX, clientY) {
+  const a = angleFromEvent(clientX, clientY);
+  if (lastAngle !== null) {
+    let delta = a - lastAngle;
+    if (delta > Math.PI) delta -= 2*Math.PI;
+    if (delta < -Math.PI) delta += 2*Math.PI;
+    dialValue = Math.max(0, Math.min(100, dialValue + delta * (100/(2*Math.PI)) * 1.6));
+    dialAngle += delta;
+  }
+  lastAngle = a;
+  setDialVisual();
+  const now = performance.now();
+  if (now - lastSend > 45) {
+    send({ action:'dial', value: Math.round(dialValue) });
+    lastSend = now;
+  }
+}
+dial.addEventListener('pointerdown', (e) => { dragging = true; lastAngle = null; dial.setPointerCapture(e.pointerId); dialMove(e.clientX, e.clientY); });
+dial.addEventListener('pointermove', (e) => { if (dragging) dialMove(e.clientX, e.clientY); });
+dial.addEventListener('pointerup', () => { dragging = false; lastAngle = null; send({ action:'dial', value: Math.round(dialValue) }); });
+setDialVisual();
+
+// Slider — linear drag, 0 to 100
+const sliderTrack = document.getElementById('sliderTrack');
+const sliderFillRemote = document.getElementById('sliderFillRemote');
+const sliderThumbRemote = document.getElementById('sliderThumbRemote');
+const sliderValueRemote = document.getElementById('sliderValueRemote');
+let sliderValue = 50;
+let sliderDragging = false;
+let lastSliderSend = 0;
+
+function setSliderVisual() {
+  sliderFillRemote.style.width = sliderValue + '%';
+  sliderThumbRemote.style.left = sliderValue + '%';
+  sliderValueRemote.textContent = Math.round(sliderValue);
+}
+function sliderMove(clientX) {
+  const rect = sliderTrack.getBoundingClientRect();
+  sliderValue = Math.max(0, Math.min(100, ((clientX - rect.left) / rect.width) * 100));
+  setSliderVisual();
+  const now = performance.now();
+  if (now - lastSliderSend > 45) {
+    send({ action:'slider', value: Math.round(sliderValue) });
+    lastSliderSend = now;
+  }
+}
+sliderTrack.addEventListener('pointerdown', (e) => {
+  sliderDragging = true;
+  sliderThumbRemote.classList.add('dragging');
+  sliderTrack.setPointerCapture(e.pointerId);
+  sliderMove(e.clientX);
+});
+sliderTrack.addEventListener('pointermove', (e) => { if (sliderDragging) sliderMove(e.clientX); });
+sliderTrack.addEventListener('pointerup', () => {
+  sliderDragging = false;
+  sliderThumbRemote.classList.remove('dragging');
+  send({ action:'slider', value: Math.round(sliderValue) });
+});
+setSliderVisual();
+
+// Brush pad — normalized x/y, 0 to 1
+const pad = document.getElementById('pad');
+const padDot = document.getElementById('padDot');
+let padDragging = false;
+let lastPadSend = 0;
+
+function padPoint(clientX, clientY) {
+  const rect = pad.getBoundingClientRect();
+  const x = Math.max(0, Math.min(1, (clientX - rect.left) / rect.width));
+  const y = Math.max(0, Math.min(1, (clientY - rect.top) / rect.height));
+  padDot.style.left = (x*100) + '%';
+  padDot.style.top = (y*100) + '%';
+  return { x, y };
+}
+pad.addEventListener('pointerdown', (e) => {
+  padDragging = true; pad.setPointerCapture(e.pointerId);
+  padDot.style.opacity = '1';
+  const p = padPoint(e.clientX, e.clientY);
+  send({ action:'brush', state:'start', x:p.x, y:p.y });
+});
+pad.addEventListener('pointermove', (e) => {
+  if (!padDragging) return;
+  const p = padPoint(e.clientX, e.clientY);
+  const now = performance.now();
+  if (now - lastPadSend > 30) {
+    send({ action:'brush', state:'move', x:p.x, y:p.y });
+    lastPadSend = now;
+  }
+});
+function padEnd(e) {
+  if (!padDragging) return;
+  padDragging = false;
+  padDot.style.opacity = '0';
+  send({ action:'brush', state:'end' });
+}
+pad.addEventListener('pointerup', padEnd);
+pad.addEventListener('pointercancel', padEnd);
+pad.addEventListener('pointerleave', padEnd);
+</script>
+
+</body>
+</html>
