@@ -1,0 +1,209 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Hyderabad Fact Wall</title>
+<link href="https://fonts.googleapis.com/css2?family=Playfair+Display:wght@600;700&family=Josefin+Sans:wght@300;400;600&display=swap" rel="stylesheet">
+<script src="https://cdnjs.cloudflare.com/ajax/libs/mqtt/5.15.2/mqtt.min.js"></script>
+<style>
+  :root { --navy:#222A68; --gold:#D9A441; --cream:#FDF6E3; }
+  * { margin:0; padding:0; box-sizing:border-box; -webkit-tap-highlight-color: transparent; }
+  body {
+    background: var(--cream);
+    font-family:'Josefin Sans',sans-serif;
+    color: var(--navy);
+    min-height:100vh;
+    display:flex; flex-direction:column; align-items:center;
+    padding:40px 20px 60px;
+  }
+  h1 {
+    font-family:'Playfair Display',serif; font-weight:700; font-size:1.9rem;
+    text-align:center; margin-bottom:8px;
+  }
+  .sub {
+    font-size:0.8rem; font-weight:300; color: rgba(34,42,104,0.65);
+    text-align:center; max-width:520px; line-height:1.6; margin-bottom:28px;
+  }
+
+  .screen-frame {
+    width:100%; max-width:920px;
+    border-radius:26px;
+    box-shadow:0 30px 70px rgba(34,42,104,0.3);
+    position:relative;
+    background: radial-gradient(140% 120% at 50% 0%, #24356e 0%, #131c3f 55%, #0b1130 100%);
+    padding: 36px clamp(16px,3vw,40px);
+    display:flex; justify-content:center;
+  }
+
+  .grid {
+    width:100%;
+    display:grid;
+    grid-template-columns:repeat(5,1fr);
+    gap:16px;
+  }
+  @media (max-width: 640px) { .grid { grid-template-columns:repeat(3,1fr); } }
+  @media (max-width: 400px) { .grid { grid-template-columns:repeat(2,1fr); } }
+
+  .card { perspective:1000px; }
+  .disc {
+    position:relative;
+    width:100%;
+    aspect-ratio: 1/1;
+    transform-style:preserve-3d;
+    transition: transform .7s cubic-bezier(.3,.8,.4,1);
+    cursor:pointer;
+  }
+  .card.flipped .disc { transform: rotateY(180deg); }
+
+  .face {
+    position:absolute; inset:0;
+    border-radius:50%;
+    display:flex; align-items:center; justify-content:center;
+    text-align:center;
+    padding: 14%;
+    backface-visibility:hidden;
+    border: 1.5px solid rgba(217,164,65,0.25);
+  }
+  .front {
+    background: radial-gradient(circle at 35% 30%, #24356e, #131c3f 75%);
+  }
+  .front h3 {
+    font-family:'Josefin Sans',sans-serif;
+    font-size: clamp(0.52rem, 1.6vw, 0.68rem);
+    font-weight:400; letter-spacing:0.06em; line-height:1.4;
+    text-transform:uppercase;
+    color: rgba(253,246,227,0.85);
+  }
+  .back {
+    transform: rotateY(180deg);
+    background: radial-gradient(circle at 35% 30%, #3a4a8c, #171f42 75%);
+    border-color: var(--gold);
+  }
+  .back h2 {
+    font-family:'Playfair Display',serif;
+    font-size: clamp(0.62rem, 2vw, 0.82rem);
+    font-weight:700; letter-spacing:0.04em; line-height:1.3;
+    text-transform:uppercase;
+    color: var(--gold);
+  }
+
+  .card:hover .front { border-color: rgba(217,164,65,0.6); }
+  .card.focused .front { border-color: var(--gold); box-shadow: 0 0 16px rgba(217,164,65,0.5); }
+</style>
+</head>
+<body>
+
+<h1>Hyderabad Fact Wall</h1>
+<div class="sub">Click a disc to flip it and reveal the fact behind it.</div>
+<div id="remoteStatus" style="display:flex;align-items:center;gap:6px;margin-bottom:20px;font-size:0.6rem;letter-spacing:0.15em;text-transform:uppercase;color:rgba(34,42,104,0.45);">
+  <span id="remoteDot" style="width:7px;height:7px;border-radius:50%;background:#c9583f;transition:background 0.3s ease;"></span>
+  <span id="remoteStatusText">Remote: connecting…</span>
+</div>
+
+<div class="screen-frame">
+  <div class="grid" id="grid"></div>
+</div>
+
+<script>
+const FACTS = [
+  ["___'S FIRST PLANNED CITY (1591)", "INDIA"],
+  ["WORLD'S LARGEST FILM STUDIO", "RAMOJI FILM CITY"],
+  ["INDIA'S FIRST DOUBLE DECKER FLYOVER", "KPHB"],
+  ["INDIA'S SECOND LARGEST METRO", "HYDERABAD METRO"],
+  ["BIGGEST ___ IN INDIA", "IKEA"],
+  ["___% OF INDIA'S PHARMA EXPORTS COME FROM HERE", "35"],
+  ["HYDERABAD IS INDIA'S ___ REAL ESTATE MARKET", "FASTEST GROWING"],
+  ["HYDERABAD IS KNOWN AS THE CITY OF ___", "PEARLS"],
+  ["HOME TO THE ICONIC MONUMENT", "CHARMINAR"],
+  ["WORLD FAMOUS BIRYANI", "HYDERABADI BIRYANI"],
+  ["WORLD'S LARGEST STARTUP INCUBATOR", "T-HUB"],
+  ["LARGEST CAMPUS OF ___ OUTSIDE USA", "MICROSOFT"],
+  ["HOME OF INDIA'S VACCINE CAPITAL", "GENOME VALLEY"],
+  ["GLOBAL IT DESTINATION", "HITEC CITY"],
+  ["FAMOUS FOR HANDCRAFTED BANGLES", "LAAD BAZAAR"],
+  ["UNESCO CREATIVE CITY", "GASTRONOMY"],
+  ["INDIA'S LARGEST ___ CLUSTER", "DEFENCE AEROSPACE"],
+  ["FAMOUS LAKE IN THE HEART OF THE CITY", "HUSSAIN SAGAR"],
+  ["HOME OF INDIA'S LARGEST STATUE IN A LAKE", "BUDDHA STATUE"],
+  ["FAMOUS HISTORIC FORT", "GOLCONDA FORT"],
+  ["WORLD'S LARGEST OFFICE OF ___", "AMAZON"],
+  ["KNOWN AS CYBERABAD", "HITEC CITY"],
+  ["HOME OF THE QUTB SHAHI DYNASTY", "GOLCONDA"],
+  ["FAMOUS FOR NATURAL PEARL TRADE", "CITY OF PEARLS"],
+  ["INDIA'S PHARMACEUTICAL ___", "HUB"]
+];
+
+const grid = document.getElementById('grid');
+const cardEls = [];
+FACTS.forEach(([front, back]) => {
+  const card = document.createElement('div');
+  card.className = 'card';
+  card.innerHTML = `
+    <div class="disc">
+      <div class="face front"><h3>${front}</h3></div>
+      <div class="face back"><h2>${back}</h2></div>
+    </div>
+  `;
+  card.addEventListener('click', () => card.classList.toggle('flipped'));
+  grid.appendChild(card);
+  cardEls.push(card);
+});
+
+// ---------- Remote control receiver ----------
+const TOPIC_BASE = 'hyd-experience-remote';
+const remoteDot = document.getElementById('remoteDot');
+const remoteStatusText = document.getElementById('remoteStatusText');
+let focusIdx = 0;
+
+function setFocus(idx) {
+  cardEls[focusIdx].classList.remove('focused');
+  focusIdx = ((idx % cardEls.length) + cardEls.length) % cardEls.length;
+  cardEls[focusIdx].classList.add('focused');
+  cardEls[focusIdx].scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+}
+cardEls[0].classList.add('focused');
+
+const remoteClient = mqtt.connect('wss://broker.hivemq.com:8884/mqtt', {
+  clientId: 'factwall-' + Math.random().toString(16).slice(2)
+});
+remoteClient.on('connect', () => {
+  remoteDot.style.background = '#3fae6a';
+  remoteStatusText.textContent = 'Remote: connected · ' + TOPIC_BASE;
+  remoteClient.subscribe(TOPIC_BASE + '/remote');
+});
+remoteClient.on('error', () => { remoteStatusText.textContent = 'Remote: connection error'; });
+remoteClient.on('close', () => {
+  remoteDot.style.background = '#c9583f';
+  remoteStatusText.textContent = 'Remote: disconnected';
+});
+
+remoteClient.on('message', (topic, payloadBuf) => {
+  let msg;
+  try { msg = JSON.parse(payloadBuf.toString()); } catch (e) { return; }
+
+  // NAVIGATE — moves focus from disc to disc without flipping anything
+  if (msg.action === 'nav') {
+    setFocus(focusIdx + (msg.dir === 'prev' ? -1 : 1));
+  }
+
+  // DIAL / SLIDER — jumps focus directly to a disc based on the 0-100 value
+  if (msg.action === 'dial' || msg.action === 'slider') {
+    setFocus(Math.floor((msg.value / 100) * cardEls.length));
+  }
+
+  // SELECT — flips whichever disc currently has focus
+  if (msg.action === 'select') {
+    cardEls[focusIdx].classList.toggle('flipped');
+  }
+
+  // RESET — un-flips every disc and returns focus to the first one
+  if (msg.action === 'reset') {
+    cardEls.forEach(c => c.classList.remove('flipped'));
+    setFocus(0);
+  }
+});
+</script>
+
+</body>
+</html>

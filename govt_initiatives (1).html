@@ -1,0 +1,588 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Government Initiatives — Telangana Rising 2047</title>
+<link href="https://fonts.googleapis.com/css2?family=Playfair+Display:wght@600;700&family=Josefin+Sans:wght@300;400;600&display=swap" rel="stylesheet">
+<script src="https://cdnjs.cloudflare.com/ajax/libs/mqtt/5.15.2/mqtt.min.js"></script>
+<style>
+  :root {
+    --midnight: #131c3f;
+    --navy: #1b2246;
+    --teal: #3E6FD9;
+    --sky: #6FA0F0;
+    --gold: #D9A441;
+    --white: #f0f4ff;
+    --muted: rgba(240,244,255,0.4);
+    --dim: rgba(240,244,255,0.12);
+    --pagenavy: #222A68; --pagecream: #FDF6E3;
+  }
+  * { margin:0; padding:0; box-sizing:border-box; }
+  html, body { height: auto; }
+  body {
+    background: var(--pagecream);
+    color: var(--pagenavy);
+    font-family:'Josefin Sans',sans-serif;
+    min-height: 100vh;
+    overflow: visible;
+    display: flex; flex-direction: column; align-items: center;
+    padding: 40px 20px 60px;
+  }
+  .page-title {
+    font-family:'Playfair Display',serif; font-weight:700; font-size:1.9rem;
+    color: var(--pagenavy); text-align:center; margin-bottom:8px;
+  }
+  .page-sub {
+    font-size:0.8rem; font-weight:300; color: rgba(34,42,104,0.65);
+    text-align:center; max-width:520px; line-height:1.6; margin-bottom:28px;
+  }
+  .screen-frame {
+    width:100%; max-width:1180px; aspect-ratio:16/9.2;
+    border-radius:26px; overflow:hidden;
+    box-shadow:0 30px 70px rgba(34,42,104,0.3);
+    position:relative;
+    background: radial-gradient(140% 120% at 50% 0%, #24356e 0%, var(--midnight) 55%, #0b1130 100%);
+  }
+
+  /* BG */
+  .screen-frame::before {
+    content:'';
+    position:absolute;
+    inset:0;
+    background:
+      radial-gradient(ellipse 60% 50% at 70% 30%, rgba(62,111,217,0.10) 0%, transparent 60%),
+      radial-gradient(ellipse 40% 60% at 20% 70%, rgba(111,160,240,0.08) 0%, transparent 50%);
+    pointer-events:none;
+    z-index:0;
+  }
+
+  .app { display:grid; grid-template-columns:1fr 320px; height:100%; position:relative; z-index:1; color: var(--white); font-family:'Josefin Sans',sans-serif; }
+
+  /* EXTERNAL SLIDER — sits below the frame, on the cream page */
+  .lever-row-external {
+    width:100%; max-width:1180px; margin-top:26px;
+    position:relative;
+    display:flex; justify-content:center; align-items:center;
+    padding: 10px 0;
+  }
+  .lever-track-h {
+    position:relative;
+    width:100%; max-width:900px; height: 40px;
+  }
+  .slider-rail {
+    position:absolute; left:0; right:0; top:50%; height:5px; margin-top:-2.5px;
+    border-radius:3px;
+    background: rgba(34,42,104,0.12);
+    overflow: hidden;
+  }
+  .slider-fill {
+    position:absolute; left:0; top:0; bottom:0; width:0%;
+    background: linear-gradient(90deg, rgba(217,164,65,0.5), var(--gold));
+    transition: width 0.45s cubic-bezier(.3,.8,.4,1);
+  }
+  .slider-tick {
+    position:absolute; top:50%; width:3px; height:3px; margin:-1.5px 0 0 -1.5px;
+    border-radius:50%; background: rgba(34,42,104,0.25);
+    pointer-events: none;
+  }
+  .lever-handle-h {
+    position:absolute; top:50%; width:26px; height:26px; margin:-13px 0 0 -13px;
+    border-radius:50%;
+    background: radial-gradient(circle at 35% 30%, #3a4a8c, #171f42 75%);
+    border: 3px solid var(--gold);
+    box-shadow: 0 0 14px rgba(217,164,65,0.6), 0 4px 10px rgba(0,0,0,0.25);
+    transition: left 0.45s cubic-bezier(.3,.8,.4,1);
+    z-index: 2;
+    cursor: grab;
+    touch-action: none;
+  }
+  .lever-handle-h.dragging { cursor: grabbing; transition: none; }
+
+  .floor-tag { font-size:8px; letter-spacing:5px; text-transform:uppercase; color:rgba(111,160,240,0.5); margin-bottom:4px; }
+  .panel-title { font-family:'Playfair Display',serif; font-size:28px; font-weight:700; color:var(--white); letter-spacing:-0.5px; line-height:1.1; margin-bottom:6px; }
+  .panel-subtitle { font-size:11px; color:var(--muted); letter-spacing:2px; text-transform:uppercase; margin-bottom:28px; }
+
+  /* STRATEGY BUTTONS */
+  .strategy-list { display:flex; flex-direction:column; gap:5px; flex:1; overflow-y:auto; }
+  .strategy-list::-webkit-scrollbar { width:2px; }
+  .strategy-list::-webkit-scrollbar-thumb { background:rgba(111,160,240,0.2); }
+
+  .strat-btn {
+    display:flex;
+    align-items:center;
+    gap:10px;
+    padding:10px 12px;
+    background:rgba(111,160,240,0.04);
+    border:1px solid rgba(111,160,240,0.1);
+    border-radius:4px;
+    cursor:pointer;
+    transition:all 0.2s;
+  }
+  .strat-btn:hover { background:rgba(111,160,240,0.1); border-color:rgba(111,160,240,0.25); }
+  .strat-btn.active { background:rgba(111,160,240,0.15); border-color:rgba(111,160,240,0.5); }
+
+  .strat-num {
+    font-family:'Playfair Display',serif;
+    font-size:18px;
+    font-weight:700;
+    color:rgba(111,160,240,0.35);
+    min-width:28px;
+    transition:color 0.2s;
+  }
+  .strat-btn.active .strat-num { color:var(--sky); }
+
+  .strat-name { font-size:10px; color:var(--muted); letter-spacing:0.5px; line-height:1.3; transition:color 0.2s; }
+  .strat-btn.active .strat-name { color:rgba(240,244,255,0.7); }
+
+  .strat-icon { font-size:16px; margin-left:auto; opacity:0.5; transition:opacity 0.2s; flex-shrink:0; }
+  .strat-btn.active .strat-icon { opacity:1; }
+
+  .progress-strip { position:absolute; bottom:0; left:0; right:0; height:2px; background:rgba(111,160,240,0.08); }
+  .progress-fill { height:100%; background:linear-gradient(90deg, var(--teal), var(--sky)); transition:width 0.5s; }
+
+  /* CENTRE — VISUALISATION */
+  .centre {
+    position:relative;
+    overflow:hidden;
+    display:flex;
+    flex-direction:column;
+  }
+
+  .vis-area {
+    flex:1;
+    display:flex;
+    align-items:center;
+    justify-content:center;
+    position:relative;
+    padding:40px;
+  }
+
+  /* HEXAGONAL CONCEPT DISPLAY */
+  .hex-display {
+    position:relative;
+    width:380px;
+    height:380px;
+    display:flex;
+    align-items:center;
+    justify-content:center;
+  }
+
+  .hex-ring {
+    position:absolute;
+    border-radius:50%;
+    border:1px solid rgba(111,160,240,0.1);
+    animation:spinSlow 30s linear infinite;
+  }
+  .hex-ring:nth-child(1) { width:360px; height:360px; border-style:dashed; }
+  .hex-ring:nth-child(2) { width:280px; height:280px; animation-direction:reverse; animation-duration:22s; border-color:rgba(62,111,217,0.12); }
+  @keyframes spinSlow { to { transform:rotate(360deg); } }
+
+  .hex-centre {
+    width:180px;
+    height:180px;
+    background:linear-gradient(135deg, rgba(62,111,217,0.3) 0%, rgba(111,160,240,0.2) 100%);
+    border:2px solid rgba(111,160,240,0.3);
+    border-radius:50%;
+    display:flex;
+    flex-direction:column;
+    align-items:center;
+    justify-content:center;
+    position:relative;
+    z-index:2;
+    text-align:center;
+    box-shadow:0 0 60px rgba(111,160,240,0.1), inset 0 1px 0 rgba(255,255,255,0.05);
+    transition:all 0.5s ease;
+  }
+
+  .hex-icon { font-size:48px; margin-bottom:8px; transition:all 0.4s; }
+  .hex-num { font-family:'Playfair Display',serif; font-size:11px; font-weight:600; letter-spacing:4px; color:var(--sky); text-transform:uppercase; }
+  .hex-title { font-family:'Playfair Display',serif; font-size:14px; font-weight:700; color:var(--white); margin-top:4px; line-height:1.2; max-width:130px; text-align:center; transition:all 0.4s; }
+
+  /* ORBIT DOTS */
+  .orbit-dot {
+    position:absolute;
+    width:8px;
+    height:8px;
+    border-radius:50%;
+    background:var(--sky);
+    box-shadow:0 0 8px var(--sky);
+    transition:all 0.5s;
+  }
+
+  /* BOTTOM BAR */
+  .bottom-bar {
+    padding:20px 32px;
+    border-top:1px solid rgba(111,160,240,0.1);
+    display:flex;
+    gap:24px;
+    align-items:center;
+    background:rgba(7,13,31,0.5);
+  }
+
+  .stat-pill {
+    display:flex;
+    flex-direction:column;
+    gap:2px;
+  }
+  .stat-pill-val { font-family:'Playfair Display',serif; font-size:22px; font-weight:700; color:var(--gold); letter-spacing:-0.5px; transition:all 0.4s; }
+  .stat-pill-lbl { font-size:8px; letter-spacing:3px; text-transform:uppercase; color:var(--muted); }
+
+  .stat-divider { width:1px; height:32px; background:rgba(111,160,240,0.15); }
+
+  /* RIGHT — INFO */
+  .right {
+    background:rgba(7,13,31,0.7);
+    border-left:1px solid rgba(111,160,240,0.1);
+    display:flex;
+    flex-direction:column;
+    padding:32px 24px;
+    overflow-y:auto;
+    backdrop-filter:blur(8px);
+  }
+  .right::-webkit-scrollbar { width:2px; }
+  .right::-webkit-scrollbar-thumb { background:rgba(111,160,240,0.1); }
+
+  .tag { font-size:8px; letter-spacing:4px; text-transform:uppercase; color:var(--sky); margin-bottom:8px; }
+  .strat-heading { font-family:'Playfair Display',serif; font-size:26px; font-weight:800; color:var(--white); line-height:1.1; margin-bottom:8px; letter-spacing:-0.3px; }
+  .strat-subhead { font-family:'Playfair Display',serif; font-style:italic; font-size:14px; font-style:italic; color:var(--muted); line-height:1.5; margin-bottom:0; }
+  .rdivider { height:1px; background:rgba(111,160,240,0.08); margin:16px 0; }
+
+  .context-block { margin-bottom:14px; }
+  .ctx-lbl { font-size:7px; letter-spacing:4px; text-transform:uppercase; color:rgba(240,244,255,0.2); margin-bottom:4px; }
+  .ctx-val { font-size:12px; color:rgba(240,244,255,0.55); line-height:1.6; }
+
+  .points-lbl { font-size:7px; letter-spacing:4px; text-transform:uppercase; color:rgba(240,244,255,0.18); margin-bottom:8px; }
+  .point-item { display:flex; gap:8px; padding:8px 10px; background:rgba(111,160,240,0.04); border-left:2px solid rgba(111,160,240,0.15); margin-bottom:5px; border-radius:0 3px 3px 0; }
+  .point-dot { width:4px; height:4px; border-radius:50%; background:var(--sky); opacity:0.5; margin-top:5px; flex-shrink:0; }
+  .point-text { font-size:10px; color:rgba(240,244,255,0.4); line-height:1.6; }
+
+  .outcome-tag {
+    display:inline-block;
+    padding:4px 10px;
+    background:rgba(217,164,65,0.1);
+    border:1px solid rgba(217,164,65,0.2);
+    border-radius:2px;
+    font-size:9px;
+    letter-spacing:2px;
+    text-transform:uppercase;
+    color:var(--gold);
+    margin-bottom:12px;
+  }
+
+  .fade { transition:opacity 0.25s ease; }
+  .fading { opacity:0; }
+</style>
+</head>
+<body>
+<h1 class="page-title">Government Initiatives</h1>
+<div class="page-sub">Slide below to move through Telangana Rising's ten strategies.</div>
+<div id="remoteStatus" style="display:flex;align-items:center;gap:6px;margin-bottom:12px;font-size:0.6rem;letter-spacing:0.15em;text-transform:uppercase;color:rgba(34,42,104,0.45);">
+  <span id="remoteDot" style="width:7px;height:7px;border-radius:50%;background:#c9583f;transition:background 0.3s ease;"></span>
+  <span id="remoteStatusText">Remote: connecting…</span>
+</div>
+
+<div class="screen-frame">
+<div class="app">
+
+  <!-- CENTRE -->
+  <div class="centre">
+    <div class="vis-area">
+      <div class="hex-display" id="hexDisplay">
+        <div class="hex-ring"></div>
+        <div class="hex-ring"></div>
+        <div class="hex-centre" id="hexCentre">
+          <div class="hex-icon" id="hexIcon">🎯</div>
+          <div class="hex-num" id="hexNum">01 / 10</div>
+          <div class="hex-title" id="hexTitle">3 Zones State</div>
+        </div>
+        <!-- orbit dots -->
+        <div class="orbit-dot" style="top:30px;left:50%;transform:translateX(-50%);"></div>
+        <div class="orbit-dot" style="bottom:30px;right:70px;opacity:0.4;width:5px;height:5px;"></div>
+        <div class="orbit-dot" style="left:30px;top:50%;transform:translateY(-50%);opacity:0.6;width:6px;height:6px;"></div>
+      </div>
+    </div>
+
+    <div class="bottom-bar">
+      <div class="stat-pill">
+        <div class="stat-pill-val fade" id="stat1Val">$3T</div>
+        <div class="stat-pill-lbl">GDP Target 2047</div>
+      </div>
+      <div class="stat-divider"></div>
+      <div class="stat-pill">
+        <div class="stat-pill-val fade" id="stat2Val">2034</div>
+        <div class="stat-pill-lbl">$1 Trillion Milestone</div>
+      </div>
+      <div class="stat-divider"></div>
+      <div class="stat-pill">
+        <div class="stat-pill-val fade" id="stat3Val">400K+</div>
+        <div class="stat-pill-lbl">Citizens Consulted</div>
+      </div>
+      <div class="stat-divider"></div>
+      <div class="stat-pill">
+        <div class="stat-pill-val fade" id="stat4Val">33</div>
+        <div class="stat-pill-lbl">Districts Covered</div>
+      </div>
+    </div>
+  </div>
+
+  <!-- RIGHT -->
+  <div class="right">
+    <div class="tag fade" id="rTag">STRATEGY 01 OF 10</div>
+    <h3 class="strat-heading fade" id="rHead">3-Zones State</h3>
+    <p class="strat-subhead fade" id="rSub">India's first state to divide its entire map into distinct economic zones</p>
+    <div class="rdivider"></div>
+    <div class="outcome-tag fade" id="rOutcome">ECONOMIC GROWTH</div>
+    <div class="context-block">
+      <div class="ctx-lbl">What it means</div>
+      <div class="ctx-val fade" id="rCtx">Telangana creates three distinct economic zones — CURE, PURE, and RARE — each with sector-specific policies, creating a complete spatial economic architecture for the state.</div>
+    </div>
+    <div class="rdivider"></div>
+    <div class="points-lbl">Key Actions</div>
+    <div id="pointsList"></div>
+  </div>
+
+</div>
+</div>
+
+<div class="lever-row-external">
+  <div class="lever-track-h" id="leverTrack">
+    <div class="slider-rail"><div class="slider-fill" id="sliderFill"></div></div>
+    <div class="lever-handle-h" id="leverHandle"></div>
+  </div>
+</div>
+
+<script>
+const strategies = [
+  {
+    num:"01", label:"3-Zones State — CURE PURE RARE", icon:"🗺️",
+    tag:"STRATEGY 01 OF 10", head:"3-Zones State", sub:"India's first state to divide its entire map into distinct economic zones",
+    outcome:"ECONOMIC GROWTH",
+    ctx:"Telangana creates three distinct economic zones — CURE, PURE, and RARE — each with sector-specific policies, creating a complete spatial economic architecture for the state.",
+    stat1:"$3T", stat2:"2034", stat3:"160km", stat4:"360km",
+    stat1L:"GDP Target 2047", stat2L:"$1T Milestone", stat3L:"ORR — CURE Boundary", stat4L:"RRR — PURE Boundary",
+    points:["CURE: Core Urban Region Economy — Powering innovation, enterprise, and world-class urban infrastructure inside the 160km Outer Ring Road","PURE: Peri-Urban Region Economy — Strengthening manufacturing and industrial growth between ORR and RRR","RARE: Rural Agri Region Economy — Modernising agriculture and ensuring prosperity for every farmer beyond the RRR","Telangana is India's ONLY state to divide its entire territory into sector-specific zones","Each zone has distinct policy frameworks, investment incentives, and development targets"]
+  },
+  {
+    num:"02", label:"From Ad Hocism to Policy", icon:"📋",
+    tag:"STRATEGY 02 OF 10", head:"From Ad Hocism to Policy", sub:"Transparent, clean, fast and eligibility-based decision making replacing discretionary governance",
+    outcome:"GOVERNANCE REFORM",
+    ctx:"In the last two years, Telangana has transitioned from exception-based decision making to comprehensive policy-led governance — transparent, clean, fast, and based on eligibility and compliance.",
+    stat1:"24", stat2:"400K+", stat3:"100%", stat4:"All",
+    stat1L:"Months to Reform", stat2L:"Citizens Consulted", stat3L:"Policy Coverage", stat4L:"33 Districts",
+    points:["Comprehensive policies covering sports to tourism, education, industries and investments, social inclusivity","Ease of Everything: mapped every single need of all stakeholders","Ease of getting documents, permissions, changing data, registering grievances","Policies acknowledged as role models — yielding remarkable impact","Goal: Make Telangana the global investor's favourite destination"]
+  },
+  {
+    num:"03", label:"Game Changer Projects", icon:"🏗️",
+    tag:"STRATEGY 03 OF 10", head:"Game Changer Projects", sub:"Infrastructure projects designed to compete with the best cities in the world — not just India",
+    outcome:"INFRASTRUCTURE",
+    ctx:"Hyderabad will undertake several game-changer infrastructure projects to compete not with neighbouring states but with the best cities in the world.",
+    stat1:"12", stat2:"Bullet", stat3:"Bharat", stat4:"Musi",
+    stat1L:"Lane Expressway", stat2L:"Train Corridor", stat3L:"Future City", stat4L:"Rejuvenation",
+    points:["Bharat Future City — a world-class planned urban development","River Musi Rejuvenation — transforming Musi into a vibrant urban river","Dry Port + 12-lane expressway connecting to Krishnapatnam Sea Port (AP)","Bullet train corridors: Hyderabad–Bengaluru and Hyderabad–Chennai via Amaravati","Manufacturing zones between ORR and RRR","Regional Ring Road (360km) and Regional Ring Railway","Integrated townships and green energy hubs","Mass adoption of electric vehicles across the state"]
+  },
+  {
+    num:"04", label:"Excellence in Governance", icon:"⚡",
+    tag:"STRATEGY 04 OF 10", head:"Excellence in Governance", sub:"Digital government, T-Fiber connectivity, and SPEED — a proactive delivery system",
+    outcome:"DIGITAL GOVERNANCE",
+    ctx:"Governments are slow. Technological changes are faster than ever in human history. Telangana proactively maps tech changes at three levels: education, policy ecosystem, and government adoption.",
+    stat1:"T-Fiber", stat2:"SPEED", stat3:"Zero", stat4:"Digital",
+    stat1L:"State Connectivity", stat2L:"Delivery Initiative", stat3L:"Physical Interaction Goal", stat4L:"Government Target",
+    points:["Digital Government: replicate government to a totally digital form — minimise physical interaction","T-Fiber: best internet and data access for all citizens — sea cable to Wi-Fi zones to satellites","SPEED: Smart, Proactive, Efficient, Effective Delivery — focused on big-ticket investment catalysis","Governance at three levels: skilled human resources, enabling business ecosystems, tech adoption","Goal: zero direct physical interaction between government and stakeholders"]
+  },
+  {
+    num:"05", label:"Knowledge Hub", icon:"🎓",
+    tag:"STRATEGY 05 OF 10", head:"Knowledge Hub", sub:"World-class educational and research institutions anchoring a knowledge economy",
+    outcome:"KNOWLEDGE ECONOMY",
+    ctx:"Telangana wishes to create a world-class knowledge hub, harnessing its existing framework of renowned educational institutions and R&D hubs for major corporations in tech, biotech, and life sciences.",
+    stat1:"CREA", stat2:"Off-Shore", stat3:"Research", stat4:"Quality",
+    stat1L:"Knowledge Economy Zone", stat2L:"Global Campus Target", stat3L:"Shared R&D Goal", stat4L:"Education as Right",
+    points:["Core Urban Region Economy (CREA) built as a knowledge hub","Inviting world-renowned higher educational institutions for offshore campuses","Virtual training annexes and stronger exchange of students and faculty","Shared research and materials between institutions globally","Education of relevance and quality is a fundamental right and key social enabler","Overhaul educational infrastructure at all levels including primary government education"]
+  },
+  {
+    num:"06", label:"Inclusive & Sustainable Welfare", icon:"🤝",
+    tag:"STRATEGY 06 OF 10", head:"Inclusive & Sustainable Welfare", sub:"$3 trillion economy is a means — not an end — to an equitable, dignified society",
+    outcome:"WELFARE & INCLUSION",
+    ctx:"Economic growth must be inclusive, providing every citizen a fair share of opportunity and a corresponding rise in standard of living. Highest welfare focus accorded to Women, Farmers, and Youth and Children.",
+    stat1:"3", stat2:"Crore", stat3:"Nordic", stat4:"PPP",
+    stat1L:"Focus Groups", stat2L:"Women Millionaires Target", stat3L:"Pension Model", stat4L:"Welfare Fund Model",
+    points:["Three key welfare focus groups: Women, Farmers, Youth and Children","Three empowerment streams: Healthcare, Education and Skills, Livelihoods","First state to create dedicated welfare fund for all subaltern citizens","Long-term goal: Scandinavian-model pension and welfare supporting fund","Ambition to create one crore women millionaires — strengthening economic leadership","Every citizen — regardless of location — receives equal opportunity and dignity"]
+  },
+  {
+    num:"07", label:"Resources for Growth", icon:"💰",
+    tag:"STRATEGY 07 OF 10", head:"Resources for Growth", sub:"A government-run investment fund enabling a non-stop cycle of infrastructure wealth creation",
+    outcome:"INVESTMENT STRATEGY",
+    ctx:"The Telangana State government would create and run a fund for the best investors globally to directly invest in core development and infra projects, with a variety of investment, holding and exit options.",
+    stat1:"PPP", stat2:"Global", stat3:"Constant", stat4:"$200B",
+    stat1L:"Fund Model", stat2L:"Investor Reach", stat3L:"Development Cycle", stat4L:"Current State GDP",
+    points:["State-run fund for global investors to directly invest in core infra projects","Varied risks and incentives to match different investor profiles","Constant development cycle — creation of infrastructure as non-stop wealth creation","Predominantly in PPP (Public Private Partnership) mode","Success lies in ability to undertake a constant development-infrastructure-wealth creation cycle","From $200B GDP towards $1T by 2034 and $3T by 2047"]
+  },
+  {
+    num:"08", label:"Environment & Sustainability", icon:"🌿",
+    tag:"STRATEGY 08 OF 10", head:"Environment & Sustainability", sub:"First city in India to mitigate most known climate change risks",
+    outcome:"SUSTAINABILITY",
+    ctx:"Hyderabad is undertaking River Musi rejuvenation as part of a plan to create a water grid — underground drainage, vibrant river revival, lake restoration, and culverts — so the city never faces urban flooding.",
+    stat1:"75-100", stat2:"First", stat3:"Net Zero", stat4:"Musi",
+    stat1L:"Years Water Security", stat2L:"Climate-Safe City in India", stat3L:"Sustainability Target", stat4L:"River Rejuvenation",
+    points:["River Musi rejuvenation: water grid with underground drainage + lake restoration","Godavari River linked as a stream to Musi — 75–100 years of clean drinking water assured","Potential to become India's first city to mitigate most known climate change risks","Net-Zero pathway by 2047 embedded across all sectors","Sustainability focus in every department, every policy, every reform","Historically nature-worshipping culture — restoring harmony with nature while pursuing growth"]
+  },
+  {
+    num:"09", label:"Culture & Heritage", icon:"🎭",
+    tag:"STRATEGY 09 OF 10", head:"Culture & Heritage", sub:"Preserving, promoting and supporting the rich fabric of Telangana's heritage and identity",
+    outcome:"CULTURAL VISION",
+    ctx:"Telangana keeps the focus of state governance on preserving, promoting and supporting culture, heritage, history, monuments, arts, entertainment and folk arts. Culture has the highest value for our people.",
+    stat1:"Hindu", stat2:"Buddhist", stat3:"Mosques", stat4:"Folk Arts",
+    stat1L:"Temples & Pilgrim Spots", stat2L:"Temples & Holy Sites", stat3L:"Iconic Mosques", stat4L:"Preserved Traditions",
+    points:["Tourism focused on religion and spirituality — highlighting all faiths and heritage sites","Telangana Talli statue (Mother of Telangana) and State Anthem Jaya Jaya He as identity pillars","Festivals, rituals, monuments, and artisanship as showcases of unique identity","Culture as the bridge between Telangana's distinct identity and larger global fusion","Arts, entertainment and folk arts preserved and promoted as living traditions","Heritage tourism as economic driver alongside cultural preservation"]
+  },
+  {
+    num:"10", label:"Of, For and By the People", icon:"🗳️",
+    tag:"STRATEGY 10 OF 10", head:"Of, For and By the People", sub:"A people-powered vision co-created with 400,000+ citizens across all 33 districts",
+    outcome:"DEMOCRATIC VISION",
+    ctx:"The government created a vision not just for the people, but co-opted citizens strongly in the process of making it. 400,000+ citizens provided insights, desires, capabilities and needs — the backbone of this vision.",
+    stat1:"400K+", stat2:"65%", stat3:"All 33", stat4:"2047",
+    stat1L:"Citizens Consulted", stat2L:"Youth Responses", stat3L:"Districts Covered", stat4L:"Vision Horizon",
+    points:["One of the most extensive citizen consultation exercises ever undertaken in India","65% of all responses came from youth — principal architects, not just beneficiaries","Citizens from Hyderabad's dense urban neighbourhoods to the most remote mandals participated","Democracy is not a form of government but a form of social organisation — Dr. B.R. Ambedkar","Aspirations crystallise into Vision's three guiding principles: Economic Growth, Empowerment, Sustainability","Final product is not the work of experts alone — it belongs to Telangana's citizens"]
+  }
+];
+
+let current = 0;
+
+function init() {
+  buildLever();
+  update(0);
+}
+
+function buildLever() {
+  const track = document.getElementById('leverTrack');
+  const n = strategies.length;
+  strategies.forEach((s, i) => {
+    const pct = (i / (n - 1)) * 100;
+    const tick = document.createElement('div');
+    tick.className = 'slider-tick';
+    tick.style.left = pct + '%';
+    track.appendChild(tick);
+  });
+}
+
+function positionHandle(idx) {
+  const n = strategies.length;
+  const pct = (idx / (n - 1)) * 100;
+  document.getElementById('leverHandle').style.left = pct + '%';
+  document.getElementById('sliderFill').style.width = pct + '%';
+}
+
+function update(idx) {
+  current = idx;
+  const s = strategies[idx];
+
+  positionHandle(idx);
+
+  // hex centre
+  document.getElementById('hexIcon').textContent = s.icon;
+  document.getElementById('hexNum').textContent = `${s.num} / 10`;
+  document.getElementById('hexTitle').textContent = s.head;
+
+  // stats
+  document.querySelectorAll('.fade').forEach(el => el.classList.add('fading'));
+  setTimeout(() => {
+    document.getElementById('stat1Val').textContent = s.stat1;
+    document.getElementById('stat2Val').textContent = s.stat2;
+    document.getElementById('stat3Val').textContent = s.stat3;
+    document.getElementById('stat4Val').textContent = s.stat4;
+    document.getElementById('rTag').textContent = s.tag;
+    document.getElementById('rHead').textContent = s.head;
+    document.getElementById('rSub').textContent = s.sub;
+    document.getElementById('rOutcome').textContent = s.outcome;
+    document.getElementById('rCtx').textContent = s.ctx;
+    document.getElementById('pointsList').innerHTML = s.points.map(p => `<div class="point-item"><div class="point-dot"></div><div class="point-text">${p}</div></div>`).join('');
+    document.querySelectorAll('.fade').forEach(el => el.classList.remove('fading'));
+  }, 220);
+}
+
+init();
+document.addEventListener('keydown', e => {
+  if(e.key==='ArrowDown' && current < strategies.length-1) update(current+1);
+  if(e.key==='ArrowUp' && current > 0) update(current-1);
+});
+
+// drag the handle left/right along the track to move between strategies
+(function enableLeverDrag() {
+  const track = document.getElementById('leverTrack');
+  const handle = document.getElementById('leverHandle');
+  let dragging = false;
+
+  function nearestIndex(clientX) {
+    const rect = track.getBoundingClientRect();
+    const frac = Math.max(0, Math.min(1, (clientX - rect.left) / rect.width));
+    return Math.round(frac * (strategies.length - 1));
+  }
+  handle.style.pointerEvents = 'auto';
+  handle.style.cursor = 'grab';
+  handle.addEventListener('pointerdown', (e) => {
+    dragging = true;
+    handle.classList.add('dragging');
+    handle.setPointerCapture(e.pointerId);
+  });
+  handle.addEventListener('pointermove', (e) => {
+    if (!dragging) return;
+    update(nearestIndex(e.clientX));
+  });
+  handle.addEventListener('pointerup', () => { dragging = false; handle.classList.remove('dragging'); });
+})();
+
+// ---------- Remote control receiver ----------
+const TOPIC_BASE = 'hyd-experience-remote';
+const remoteDot = document.getElementById('remoteDot');
+const remoteStatusText = document.getElementById('remoteStatusText');
+
+const remoteClient = mqtt.connect('wss://broker.hivemq.com:8884/mqtt', {
+  clientId: 'govtinit-' + Math.random().toString(16).slice(2)
+});
+remoteClient.on('connect', () => {
+  remoteDot.style.background = '#3fae6a';
+  remoteStatusText.textContent = 'Remote: connected · ' + TOPIC_BASE;
+  remoteClient.subscribe(TOPIC_BASE + '/remote');
+});
+remoteClient.on('error', () => { remoteStatusText.textContent = 'Remote: connection error'; });
+remoteClient.on('close', () => {
+  remoteDot.style.background = '#c9583f';
+  remoteStatusText.textContent = 'Remote: disconnected';
+});
+
+remoteClient.on('message', (topic, payloadBuf) => {
+  let msg;
+  try { msg = JSON.parse(payloadBuf.toString()); } catch (e) { return; }
+
+  // NAVIGATE — steps one strategy at a time, forward or back
+  if (msg.action === 'nav') {
+    const dir = msg.dir === 'prev' ? -1 : 1;
+    update(Math.max(0, Math.min(strategies.length - 1, current + dir)));
+  }
+
+  // SLIDER — the phone's dedicated linear slider maps directly onto the
+  // ten strategies, same control metaphor as this page's own slider
+  if (msg.action === 'slider') {
+    const idx = Math.min(strategies.length - 1, Math.floor((msg.value / 100) * strategies.length));
+    update(idx);
+  }
+
+  // DIAL — also supported, in case the phone's rotary dial is used instead
+  if (msg.action === 'dial') {
+    const idx = Math.min(strategies.length - 1, Math.floor((msg.value / 100) * strategies.length));
+    update(idx);
+  }
+
+  // SELECT — confirms whichever strategy is currently showing
+  if (msg.action === 'select') {
+    update(current);
+  }
+
+  // RESET — back to strategy 01
+  if (msg.action === 'reset') {
+    update(0);
+  }
+});
+</script>
+</body>
+</html>

@@ -1,0 +1,282 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Hyderabad Eats — Legacy & Modern</title>
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.min.css" />
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.min.js"></script>
+  <link href="https://fonts.googleapis.com/css2?family=Playfair+Display:ital,wght@0,600;0,700;1,400&family=Josefin+Sans:wght@300;400;600&display=swap" rel="stylesheet" />
+  <style>
+    :root {
+      --navy:#222A68; --gold:#D9A441; --cream:#FDF6E3;
+      --legacy:#F2C94C; --modern:#1B3A6B;
+    }
+    * { margin: 0; padding: 0; box-sizing: border-box; }
+
+    body {
+      font-family: 'Josefin Sans', sans-serif;
+      background: var(--cream);
+      color: var(--navy);
+      min-height: 100vh;
+      display: flex; flex-direction: column; align-items: center;
+      padding: 40px 20px 60px;
+    }
+
+    h1 {
+      font-family: 'Playfair Display', serif;
+      font-weight: 700;
+      font-size: 1.9rem;
+      color: var(--navy);
+      text-align: center;
+      margin-bottom: 8px;
+    }
+
+    .sub {
+      font-size: 0.8rem;
+      font-weight: 300;
+      color: rgba(34,42,104,0.65);
+      text-align: center;
+      max-width: 480px;
+      line-height: 1.6;
+      margin-bottom: 28px;
+    }
+
+    /* MAP SHELL — framed, matches every other page in this project */
+    .map-shell {
+      width: 100%;
+      max-width: 1000px;
+      border-radius: 26px;
+      overflow: hidden;
+      box-shadow: 0 30px 70px rgba(34,42,104,0.3);
+      background: #0a0a0a;
+      position: relative;
+      aspect-ratio: 16 / 10;
+    }
+    #map { width: 100%; height: 100%; }
+
+    /* LEGEND */
+    .legend {
+      position: absolute;
+      bottom: 20px; left: 20px;
+      z-index: 1000;
+      background: rgba(10,10,14,0.82);
+      border: 1px solid rgba(217,164,65,0.3);
+      border-radius: 14px;
+      padding: 14px 18px;
+      backdrop-filter: blur(10px);
+    }
+    .legend-title {
+      font-size: 0.56rem;
+      letter-spacing: 0.2em;
+      text-transform: uppercase;
+      color: rgba(253,237,216,0.45);
+      margin-bottom: 10px;
+    }
+    .legend-item {
+      display: flex; align-items: center; gap: 9px;
+      margin-bottom: 7px;
+      font-size: 0.72rem;
+      color: var(--cream);
+    }
+    .legend-dot { width: 13px; height: 13px; border-radius: 50%; border: 2px solid; flex-shrink: 0; }
+    .dot-legacy { background: var(--legacy); border-color: #fff; }
+    .dot-modern { background: var(--modern); border-color: #fff; }
+
+    /* POPUP — navy/gold/cream, matching the rest of the project */
+    .leaflet-popup-content-wrapper {
+      background: #10142c !important;
+      border: 1px solid rgba(217,164,65,0.35) !important;
+      border-radius: 16px !important;
+      box-shadow: 0 20px 60px rgba(0,0,0,0.6) !important;
+      overflow: hidden;
+      padding: 0 !important;
+    }
+    .leaflet-popup-tip-container { display: none; }
+
+    .popup-card { width: 260px; overflow: hidden; }
+    .popup-img-slot { width: 100%; height: 150px; }
+    .popup-img { width: 100%; height: 150px; object-fit: cover; display: block; filter: brightness(0.92); }
+    .popup-img-loading {
+      width: 100%; height: 150px; display: flex; align-items: center; justify-content: center;
+      background: #1a1030; color: rgba(253,246,227,0.4);
+      font-size: 0.62rem; letter-spacing: 0.15em; text-transform: uppercase;
+    }
+    .popup-img-placeholder { width: 100%; height: 150px; display: flex; align-items: center; justify-content: center; font-size: 52px; }
+    .popup-body { padding: 15px 17px 17px; }
+
+    .popup-type { font-size: 0.55rem; letter-spacing: 0.22em; text-transform: uppercase; font-weight: 600; margin-bottom: 6px; }
+    .popup-type.legacy { color: var(--legacy); }
+    .popup-type.modern { color: var(--modern); }
+
+    .popup-name { font-family: 'Playfair Display', serif; font-size: 1.1rem; color: var(--cream); margin-bottom: 10px; line-height: 1.25; }
+    .popup-dish-label { font-size: 0.55rem; letter-spacing: 0.15em; text-transform: uppercase; color: rgba(253,246,227,0.4); margin-bottom: 4px; }
+    .popup-dish { font-size: 0.8rem; color: var(--cream); font-style: italic; line-height: 1.4; }
+    .popup-dish-icon { display: inline-block; margin-right: 5px; }
+
+    .leaflet-popup-close-button { color: rgba(253,246,227,0.5) !important; font-size: 18px !important; top: 8px !important; right: 10px !important; z-index: 10; }
+  </style>
+</head>
+<body>
+
+<h1>Hyderabad Eats</h1>
+<div class="sub">Click a pin to explore Hyderabad's food, from century-old biryani houses to the city's newest cafés</div>
+
+<div class="map-shell">
+  <div id="map"></div>
+  <div class="legend">
+    <div class="legend-title">Map Key</div>
+    <div class="legend-item"><div class="legend-dot dot-legacy"></div> Old Iconic Restaurants</div>
+    <div class="legend-item"><div class="legend-dot dot-modern"></div> Modern Cafés</div>
+  </div>
+</div>
+
+<script>
+  // Init map centered on Hyderabad
+  const map = L.map('map', {
+    center: [17.400, 78.455],
+    zoom: 11,
+    zoomControl: false
+  });
+
+  L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+    attribution: '© <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors',
+    maxZoom: 19
+  }).addTo(map);
+
+  L.control.zoom({ position: 'topright' }).addTo(map);
+
+  // Custom marker icons — bigger, flatter, no glow
+  function makeIcon(color, border) {
+    return L.divIcon({
+      className: '',
+      html: `<div style="
+        width:28px;height:28px;
+        background:${color};
+        border:2.5px solid ${border};
+        border-radius:50% 50% 50% 0;
+        transform:rotate(-45deg);
+        box-shadow:0 2px 4px rgba(0,0,0,0.35);
+        cursor:pointer;
+      "></div>`,
+      iconSize: [28, 28],
+      iconAnchor: [14, 28],
+      popupAnchor: [0, -32]
+    });
+  }
+
+  const legacyIcon = makeIcon('#F2C94C', '#ffffff');
+  const modernIcon = makeIcon('#1B3A6B', '#ffffff');
+
+  // Photo helper — pulls a REAL food photo from the Foodish API (foodish-api.com),
+  // a free live API with a confirmed "biryani" category, among others. This calls
+  // the actual API rather than guessing at filenames, so every image it returns is
+  // guaranteed to exist (unlike the earlier hardcoded Unsplash links, which had
+  // gone dead). Cached per place so reopening a popup doesn't refetch.
+  const FOOD_IMG_CACHE = {};
+  const LEGACY_CATEGORY = 'biryani';
+  const MODERN_CATEGORIES = ['pizza', 'pasta', 'dessert', 'burger'];
+
+  function categoryFor(type, index) {
+    if (type === 'legacy') return LEGACY_CATEGORY;
+    return MODERN_CATEGORIES[index % MODERN_CATEGORIES.length];
+  }
+
+  async function fetchFoodImage(category) {
+    const res = await fetch(`https://foodish-api.com/api/images/${category}`);
+    const data = await res.json();
+    return data.image;
+  }
+
+  // ---- OLD ICONIC RESTAURANTS ----
+  const legacy = [
+    { name: "Shah Ghouse Café & Restaurant", lat: 17.3616, lng: 78.4747, dish: "Dum Ka Murgh Biryani", emoji: "🍛" },
+    { name: "Shadaab Hotel", lat: 17.3598, lng: 78.4720, dish: "Mutton Marag & Sheer Khurma", emoji: "🥘" },
+    { name: "Hotel Nayaab", lat: 17.3620, lng: 78.4735, dish: "Patthar Ka Gosht", emoji: "🍖" },
+    { name: "Café Bahar", lat: 17.4220, lng: 78.4450, dish: "Chicken Haleem & Irani Chai", emoji: "☕" },
+    { name: "Paradise Restaurant", lat: 17.4401, lng: 78.4985, dish: "Kacchi Gosht Ki Biryani", emoji: "🍚" },
+    { name: "Hotel Shadab (Madina)", lat: 17.3602, lng: 78.4730, dish: "Nihari & Sheermal", emoji: "🫓" },
+    { name: "Hyderabad House", lat: 17.4275, lng: 78.4445, dish: "Chicken Biryani with Mirchi Ka Salan", emoji: "🌶️" },
+    { name: "Minerva Coffee Shop", lat: 17.4120, lng: 78.4760, dish: "Fry Pesarattu & Upma", emoji: "🥞" },
+    { name: "Sarvi Restaurant", lat: 17.3591, lng: 78.4728, dish: "Mutton Seekh Kebab & Roomali Roti", emoji: "🌯" },
+    { name: "Chicha's Restaurant", lat: 17.3629, lng: 78.4753, dish: "Chicken 65 & Biryani", emoji: "🍗" },
+    { name: "Bawarchi Restaurant", lat: 17.3949, lng: 78.4867, dish: "Boneless Chicken Biryani", emoji: "🍛" },
+    { name: "Watson's Restaurant", lat: 17.4399, lng: 78.4983, dish: "Chicken Chettinad & Grills", emoji: "🍗" },
+    { name: "Grand Hotel", lat: 17.3927, lng: 78.4740, dish: "Butter Chicken & Tandoori Roti", emoji: "🫓" },
+    { name: "Pista House", lat: 17.3600, lng: 78.4760, dish: "Osmania Biscuits & Shahi Biryani", emoji: "🍪" },
+    { name: "Karachi Bakery", lat: 17.4372, lng: 78.4988, dish: "Fruit Biscuits & Osmania Biscuits", emoji: "🍪" },
+    { name: "Nimrah Cafe & Bakery", lat: 17.3612, lng: 78.4744, dish: "Irani Chai & Osmania Biscuits", emoji: "🫖" },
+    { name: "Subhan Bakery", lat: 17.3891, lng: 78.4675, dish: "Osmania Biscuits & Double Ka Meetha", emoji: "🍪" },
+    { name: "Angeethi", lat: 17.4172, lng: 78.4460, dish: "Black Dal Sarson & Missi Roti", emoji: "🍛" },
+    { name: "Pulla Reddy Sweets", lat: 17.4005, lng: 78.4830, dish: "Kova Bellam & Boondi Ladoo", emoji: "🍬" },
+    { name: "Almond House", lat: 17.4150, lng: 78.4480, dish: "Dry Fruit Sweets & Baklava", emoji: "🥮" }
+  ];
+
+  // ---- NEW WAVE CAFÉS ----
+  const modern = [
+    { name: "Roastery Coffee House", lat: 17.4280, lng: 78.4155, dish: "Single-Origin Pour Over & Banana Bread", emoji: "☕" },
+    { name: "The Humming Tree", lat: 17.4310, lng: 78.4180, dish: "Cold Brew & Avocado Toast", emoji: "🥑" },
+    { name: "Olive Bistro", lat: 17.4350, lng: 78.3920, dish: "Truffle Mushroom Risotto", emoji: "🍄" },
+    { name: "Cafecito", lat: 17.4398, lng: 78.4020, dish: "Cortado & Blueberry Cheesecake", emoji: "🫐" },
+    { name: "Farzi Café", lat: 17.4491, lng: 78.3775, dish: "Modernist Dal Makhani Kulcha", emoji: "🫙" },
+    { name: "The Local – Banjara", lat: 17.4135, lng: 78.4470, dish: "Craft Beer & Loaded Nachos", emoji: "🍺" },
+    { name: "KALI – Social", lat: 17.4200, lng: 78.4390, dish: "Masala Quesadilla & Chilli Cheese Toast", emoji: "🧀" },
+    { name: "Story Café", lat: 17.4460, lng: 78.3850, dish: "Flat White & Croque Monsieur", emoji: "🥐" },
+    { name: "Café 555", lat: 17.4510, lng: 78.3800, dish: "Signature Butter Chicken Pasta", emoji: "🍝" },
+    { name: "The Blue Fox", lat: 17.4090, lng: 78.4730, dish: "Continental Grilled Sole & Crème Brûlée", emoji: "🐟" },
+    { name: "Yours Truly", lat: 17.4270, lng: 78.4085, dish: "Wood-Fired Pizza & Sangria", emoji: "🍕" },
+    { name: "Cream Stone", lat: 17.4180, lng: 78.4480, dish: "Mix-In Ice Cream Sundaes", emoji: "🍨" },
+    { name: "Prost Brewpub", lat: 17.4150, lng: 78.4430, dish: "Craft Beer & Loaded Fries", emoji: "🍟" },
+    { name: "Sarto's", lat: 17.4300, lng: 78.4130, dish: "Wood-Fired Margherita", emoji: "🍕" },
+    { name: "Chocolate Room", lat: 17.4200, lng: 78.4420, dish: "Belgian Waffles & Hot Chocolate", emoji: "🍫" },
+    { name: "Katha Coffee & Bakehouse", lat: 17.4160, lng: 78.4400, dish: "Cold Brew & Artisan Pastries", emoji: "☕" },
+    { name: "Absolute Barbecues", lat: 17.4300, lng: 78.4090, dish: "Live Grill Buffet", emoji: "🍢" },
+    { name: "Chutneys", lat: 17.4245, lng: 78.4075, dish: "Dosa Platter & Chutney Sampler", emoji: "🥞" },
+    { name: "Ulavacharu", lat: 17.4230, lng: 78.4200, dish: "Bamboo Chicken & Andhra Biryani", emoji: "🎋" },
+    { name: "Ohri's", lat: 17.4110, lng: 78.4350, dish: "Multi-Cuisine Buffet", emoji: "🍽️" }
+  ];
+
+  function buildPopup(place, type) {
+    const typeLabel = type === 'legacy' ? 'Old Iconic Restaurant' : 'Modern Café';
+    return `
+      <div class="popup-card">
+        <div class="popup-img-slot" data-place="${place.name}">
+          <div class="popup-img-loading">Loading photo…</div>
+        </div>
+        <div class="popup-body">
+          <div class="popup-type ${type}">${typeLabel}</div>
+          <div class="popup-name">${place.name}</div>
+          <div class="popup-dish-label">Must Try</div>
+          <div class="popup-dish"><span class="popup-dish-icon">${place.emoji}</span>${place.dish}</div>
+        </div>
+      </div>`;
+  }
+
+  function wireMarker(p, type, category) {
+    const icon = type === 'legacy' ? legacyIcon : modernIcon;
+    const marker = L.marker([p.lat, p.lng], { icon }).addTo(map);
+    marker.bindPopup(buildPopup(p, type), { maxWidth: 260, minWidth: 260, className: 'custom-popup' });
+
+    marker.on('popupopen', async (e) => {
+      const slot = e.popup._contentNode.querySelector('.popup-img-slot');
+      if (!slot) return;
+
+      if (FOOD_IMG_CACHE[p.name]) {
+        slot.innerHTML = `<img class="popup-img" src="${FOOD_IMG_CACHE[p.name]}" alt="${p.name}">`;
+        return;
+      }
+      try {
+        const url = await fetchFoodImage(category);
+        FOOD_IMG_CACHE[p.name] = url;
+        slot.innerHTML = `<img class="popup-img" src="${url}" alt="${p.name}">`;
+      } catch (err) {
+        slot.innerHTML = `<div class="popup-img-placeholder" style="background:${type === 'legacy' ? '#2a1508' : '#0a1830'}">${p.emoji}</div>`;
+      }
+    });
+  }
+
+  legacy.forEach((p, i) => wireMarker(p, 'legacy', categoryFor('legacy', i)));
+  modern.forEach((p, i) => wireMarker(p, 'modern', categoryFor('modern', i)));
+</script>
+</body>
+</html>

@@ -1,0 +1,612 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Future Urban Expansion — CURE · PURE · RARE</title>
+<link href="https://fonts.googleapis.com/css2?family=Playfair+Display:ital,wght@0,600;0,700;1,400&family=Josefin+Sans:wght@300;400;600&display=swap" rel="stylesheet">
+<style>
+  :root {
+    --bg: #131c3f;
+    --cure: #6FA0F0;
+    --pure: #6FA26E;
+    --rare: #D9A441;
+    --neutral: rgba(253,246,227,0.7);
+    --dim: rgba(253,246,227,0.15);
+    --dimmer: rgba(253,246,227,0.06);
+    --pagenavy: #222A68; --pagecream: #FDF6E3;
+  }
+  * { margin:0; padding:0; box-sizing:border-box; }
+  html, body { height: auto; }
+  body {
+    background: var(--pagecream);
+    color: var(--pagenavy);
+    font-family:'Josefin Sans',sans-serif;
+    min-height: 100vh;
+    overflow: visible;
+    display: flex; flex-direction: column; align-items: center;
+    padding: 40px 20px 60px;
+  }
+  .page-title {
+    font-family:'Playfair Display',serif; font-weight:700; font-size:1.9rem;
+    color: var(--pagenavy); text-align:center; margin-bottom:8px;
+  }
+  .page-sub {
+    font-size:0.8rem; font-weight:300; color: rgba(34,42,104,0.65);
+    text-align:center; max-width:520px; line-height:1.6; margin-bottom:28px;
+  }
+  .info-frame {
+    width:100%; max-width:1000px;
+    border-radius:22px;
+    box-shadow:0 20px 50px rgba(34,42,104,0.25);
+    position:relative;
+    background: radial-gradient(140% 120% at 50% 0%, #24356e 0%, var(--bg) 55%, #0b1130 100%);
+    overflow: hidden;
+    padding: 24px 40px 18px;
+  }
+  .info-frame::before {
+    content:'';
+    position:absolute; inset:0;
+    background:
+      radial-gradient(ellipse 50% 40% at 50% 30%, rgba(111,160,240,0.08) 0%, transparent 60%);
+    pointer-events:none; z-index:0;
+  }
+
+  .circle-frame {
+    width: min(560px, 92vw); height: min(560px, 92vw);
+    border-radius: 50%;
+    margin-top: 30px;
+    box-shadow: 0 20px 50px rgba(34,42,104,0.25);
+    position: relative;
+    background: radial-gradient(140% 120% at 50% 30%, #24356e 0%, var(--bg) 55%, #0b1130 100%);
+    border: 5px solid var(--cure);
+    overflow: hidden;
+    display: flex; align-items: center; justify-content: center;
+  }
+  .circle-frame::before {
+    content:'';
+    position:absolute; inset:0; border-radius:50%;
+    background:
+      radial-gradient(ellipse 50% 40% at 50% 30%, rgba(111,160,240,0.08) 0%, transparent 60%);
+    pointer-events:none; z-index:0;
+  }
+
+  .app { display:grid; grid-template-rows:1fr; height:100%; position:relative; z-index:1; color: var(--neutral); font-family:'Josefin Sans',sans-serif; }
+
+  /* EXTERNAL HALF-DIAL — replaces the old top zone tabs, sits below the frame */
+  /* KIOSK DIAL — the physical rotary dial at the centre of the round kiosk.
+     Position (not a click) determines the zone: drag it, it turns, and
+     whichever zone its marker points to becomes active. */
+  .kiosk-dial {
+    position:absolute; left:250px; top:250px; width:130px; height:130px;
+    margin:-65px 0 0 -65px;
+    border-radius:50%;
+    z-index: 6;
+    cursor: grab;
+    touch-action: none;
+    transition: transform 0.45s cubic-bezier(.3,.8,.4,1);
+  }
+  .kiosk-dial.dragging { cursor: grabbing; transition: none; }
+  .kiosk-dial-grip {
+    width:100%; height:100%; border-radius:50%;
+    background: radial-gradient(circle at 35% 30%, #3a4a8c, #171f42 75%);
+    border: 3px solid var(--gold);
+    box-shadow: 0 0 24px rgba(217,164,65,0.5), 0 10px 22px rgba(0,0,0,0.5);
+    display:flex; align-items:center; justify-content:center; gap:7px;
+  }
+  .kiosk-dial-grip span {
+    width:9px; height:9px; border-radius:50%;
+    background: rgba(217,164,65,0.7);
+  }
+  .kiosk-dial-marker {
+    position:absolute; left:50%; top:-8px; width:8px; height:8px; margin-left:-4px;
+    border-radius:50%; background: var(--gold);
+    box-shadow: 0 0 10px rgba(217,164,65,0.9);
+  }
+  .dial-active-label {
+    position:absolute; left:250px; top:250px; width:0; height:0;
+    display:flex; align-items:center; justify-content:center;
+    pointer-events: none;
+  }
+  .dial-active-label span {
+    position:absolute; top:-122px; left:50%; transform:translateX(-50%);
+    font-family:'Playfair Display',serif; font-weight:800; font-size:1.35rem;
+    white-space:nowrap;
+    opacity: 0; transition: opacity 0.3s ease;
+  }
+  .dial-active-label span.show { opacity: 1; }
+
+  /* MAIN — description on top (curved screen), circle kiosk below, clearly separated */
+  /* CONCENTRIC ZONE MAP — sized to fill the circle-frame generously */
+  .zone-map {
+    position:relative;
+    width:500px;
+    height:500px;
+    transform: scale(1.0);
+  }
+
+  .zone-ring {
+    position:absolute;
+    border-radius:50%;
+    display:flex;
+    align-items:center;
+    justify-content:center;
+    transition:all 0.6s cubic-bezier(0.4,0,0.2,1);
+    cursor:pointer;
+  }
+
+  /* RARE - outermost */
+  .zone-ring.rare {
+    inset:0;
+    background:radial-gradient(circle, transparent 58%, rgba(198,138,46,0.06) 70%, rgba(198,138,46,0.12) 100%);
+    border:1.5px dashed rgba(198,138,46,0.25);
+  }
+  .zone-ring.rare.active {
+    background:radial-gradient(circle, transparent 58%, rgba(198,138,46,0.12) 70%, rgba(198,138,46,0.22) 100%);
+    border-color:rgba(198,138,46,0.6);
+  }
+
+  /* PURE - middle */
+  .zone-ring.pure {
+    inset:80px;
+    background:radial-gradient(circle, transparent 50%, rgba(76,138,80,0.06) 65%, rgba(76,138,80,0.12) 100%);
+    border:1.5px dashed rgba(76,138,80,0.25);
+  }
+  .zone-ring.pure.active {
+    background:radial-gradient(circle, transparent 50%, rgba(76,138,80,0.12) 65%, rgba(76,138,80,0.22) 100%);
+    border-color:rgba(76,138,80,0.6);
+  }
+
+  /* CURE - innermost */
+  .zone-ring.cure {
+    inset:160px;
+    background:radial-gradient(circle, rgba(111,160,240,0.15) 0%, rgba(111,160,240,0.1) 50%, rgba(111,160,240,0.05) 100%);
+    border:2px solid rgba(111,160,240,0.4);
+  }
+  .zone-ring.cure.active {
+    background:radial-gradient(circle, rgba(111,160,240,0.25) 0%, rgba(111,160,240,0.15) 50%, rgba(111,160,240,0.08) 100%);
+    border-color:rgba(111,160,240,0.8);
+    box-shadow:0 0 40px rgba(111,160,240,0.15);
+  }
+
+  /* ZONE LABELS */
+  .zone-label {
+    position:absolute;
+    font-family:'Josefin Sans',sans-serif;
+    font-weight:700;
+    letter-spacing:3px;
+    text-transform:uppercase;
+    opacity:0.5;
+    transition:opacity 0.3s;
+    white-space:nowrap;
+  }
+  .zone-label.cure { color:var(--cure); top:66%; left:50%; transform:translate(-50%,-50%); opacity:0.9; font-size:26px; font-weight:800; font-family:'Playfair Display',serif; }
+  .zone-label.pure { font-size:24px; font-weight:800; font-family:'Playfair Display',serif; color:var(--pure); bottom:78px; right:60px; opacity:0.9; }
+  .zone-label.rare { font-size:22px; font-weight:800; font-family:'Playfair Display',serif; color:var(--rare); top:24px; right:30px; opacity:0.9; }
+
+  /* RING LABELS km */
+  .ring-label {
+    position:absolute;
+    font-family:'Josefin Sans',sans-serif;
+    font-size:9px;
+    color:rgba(253,246,227,0.3);
+    background:var(--bg);
+    padding:2px 6px;
+    border-radius:2px;
+  }
+  .ring-label.orr { top:168px; left:50%; transform:translateX(-50%); color:rgba(111,160,240,0.4); }
+  .ring-label.rrr { top:88px; left:50%; transform:translateX(-50%); color:rgba(76,138,80,0.4); }
+
+  /* CITY CENTRE DOT */
+  .city-dot {
+    position:absolute;
+    top:50%; left:50%;
+    transform:translate(-50%,-50%);
+    width:12px; height:12px;
+    border-radius:50%;
+    background:var(--cure);
+    box-shadow:0 0 20px var(--cure);
+    z-index:10;
+  }
+  .city-dot::after {
+    content:'HYDERABAD';
+    position:absolute;
+    top:16px; left:50%;
+    transform:translateX(-50%);
+    font-size:7px;
+    letter-spacing:2px;
+    color:var(--cure);
+    white-space:nowrap;
+    font-family:'Josefin Sans',sans-serif;
+  }
+
+  /* RADIAL ROADS */
+  .roads-svg { position:absolute; inset:0; pointer-events:none; }
+
+  /* FLOATING TAGS */
+  .float-tag {
+    position:absolute;
+    padding:4px 10px;
+    border-radius:3px;
+    font-size:8px;
+    font-weight:600;
+    letter-spacing:2px;
+    text-transform:uppercase;
+    opacity:0;
+    transition:opacity 0.4s;
+  }
+  .float-tag.cure { background:rgba(111,160,240,0.15); border:1px solid rgba(111,160,240,0.3); color:var(--cure); }
+  .float-tag.pure { background:rgba(76,138,80,0.1); border:1px solid rgba(76,138,80,0.25); color:var(--pure); }
+  .float-tag.rare { background:rgba(198,138,46,0.08); border:1px solid rgba(198,138,46,0.2); color:var(--rare); }
+  .float-tag.show { opacity:1; }
+
+  /* PROJECTS LIST */
+  .projects-strip {
+    position:absolute;
+    bottom:0; left:0; right:0;
+    padding:16px 32px;
+    background:linear-gradient(to top, rgba(5,14,26,0.95) 0%, transparent 100%);
+    display:flex;
+    gap:8px;
+    flex-wrap:wrap;
+  }
+  .project-chip {
+    padding:4px 10px;
+    background:rgba(111,160,240,0.07);
+    border:1px solid rgba(111,160,240,0.15);
+    border-radius:2px;
+    font-size:8px;
+    letter-spacing:1px;
+    color:rgba(253,246,227,0.45);
+    transition:all 0.3s;
+    cursor:default;
+  }
+  .project-chip:hover { background:rgba(111,160,240,0.12); color:rgba(253,246,227,0.7); }
+
+  /* RIGHT PANEL */
+  .info-panel {
+    background:transparent;
+    border-left:none;
+    border-top:none;
+    display:flex;
+    flex-direction:column;
+    align-items:center;
+    text-align:center;
+    padding: 4px 20px 6px;
+  }
+  .info-panel::-webkit-scrollbar { width:2px; }
+  .info-panel::-webkit-scrollbar-thumb { background:rgba(111,160,240,0.1); }
+
+  .zone-badge {
+    display:inline-flex;
+    align-items:center;
+    gap:8px;
+    padding:6px 12px;
+    border-radius:3px;
+    margin-bottom:14px;
+    transition:all 0.3s;
+  }
+  .zone-badge.cure-bg { background:rgba(111,160,240,0.15); border:1px solid rgba(111,160,240,0.3); }
+  .zone-badge.pure-bg { background:rgba(76,138,80,0.12); border:1px solid rgba(76,138,80,0.25); }
+  .zone-badge.rare-bg { background:rgba(198,138,46,0.08); border:1px solid rgba(198,138,46,0.2); }
+  .zone-badge.all-bg { background:rgba(253,246,227,0.06); border:1px solid rgba(253,246,227,0.12); }
+  .badge-dot { width:8px; height:8px; border-radius:50%; }
+  .badge-text { font-size:9px; font-weight:600; letter-spacing:3px; text-transform:uppercase; }
+
+  .zone-head { font-family:'Playfair Display',serif; font-size:24px; font-weight:700; color:var(--white); line-height:1.2; margin-bottom:6px; }
+  .zone-full { font-size:10px; letter-spacing:2px; text-transform:uppercase; color:rgba(253,246,227,0.35); margin-bottom:12px; }
+  .zone-desc { font-size:12px; line-height:1.8; color:rgba(253,246,227,0.55); margin-bottom:16px; max-width:560px; }
+  .idivider { height:1px; background:rgba(111,160,240,0.08); margin:14px 0; }
+  .pts-lbl { font-size:7px; letter-spacing:4px; text-transform:uppercase; color:rgba(253,246,227,0.22); margin-bottom:8px; text-align:left; }
+  .pt { display:flex; gap:8px; padding:8px 10px; background:rgba(253,246,227,0.03); border-left:2px solid rgba(111,160,240,0.15); margin-bottom:5px; text-align:left; }
+  .pt-dot { width:4px; height:4px; border-radius:50%; background:var(--cure); opacity:0.4; margin-top:5px; flex-shrink:0; transition:background 0.3s; }
+  .pt-text { font-size:10px; color:rgba(253,246,227,0.38); line-height:1.6; }
+
+  .stat-row { display:flex; gap:16px; margin-bottom:16px; max-width:400px; }
+  .mini-stat { flex:1; padding:10px; background:rgba(253,246,227,0.03); border:1px solid rgba(253,246,227,0.06); border-radius:3px; text-align:center; }
+  .mini-val { font-family:'Josefin Sans',sans-serif; font-size:18px; color:var(--cure); font-weight:500; transition:color 0.3s; }
+  .mini-lbl { font-size:7px; letter-spacing:2px; text-transform:uppercase; color:rgba(253,246,227,0.2); margin-top:3px; }
+
+  .fade { transition:opacity 0.25s ease; }
+  .fading { opacity:0; }
+</style>
+</head>
+<body>
+<h1 class="page-title">Future Urban Expansion</h1>
+<div class="page-sub">Turn the dial at the centre of the kiosk to explore CURE, PURE, and RARE.</div>
+
+<div class="info-frame">
+    <div class="info-panel">
+      <div class="zone-badge all-bg fade" id="zoneBadge">
+        <div class="badge-dot" style="background:rgba(253,246,227,0.4)"></div>
+        <div class="badge-text" style="color:rgba(253,246,227,0.6)">OVERVIEW</div>
+      </div>
+      <h3 class="zone-head fade" id="zoneHead">CURE · PURE · RARE</h3>
+      <div class="zone-full fade" id="zoneFull">India's First 3-Zone State Architecture</div>
+      <p class="zone-desc fade" id="zoneDesc">Telangana is India's first and only state to divide its entire map into three distinct, sector-specific economic zones — creating a complete spatial architecture that links Hyderabad's urban core to the farthest rural districts in one coherent vision.</p>
+
+      <div class="stat-row">
+        <div class="mini-stat">
+          <div class="mini-val fade" id="sv1">160km</div>
+          <div class="mini-lbl">ORR Boundary</div>
+        </div>
+        <div class="mini-stat">
+          <div class="mini-val fade" id="sv2">360km</div>
+          <div class="mini-lbl">RRR Boundary</div>
+        </div>
+      </div>
+
+      <div class="idivider"></div>
+      <div class="pts-lbl">Key Features</div>
+      <div id="ptsList"></div>
+    </div>
+</div>
+
+<div class="circle-frame">
+      <div class="zone-map" id="zoneMap">
+
+        <!-- SVG roads -->
+        <svg class="roads-svg" viewBox="0 0 500 500">
+          <!-- Radial roads from centre -->
+          <g id="roadsGroup" opacity="0.15">
+            <line x1="250" y1="250" x2="250" y2="40" stroke="rgba(253,246,227,0.4)" stroke-width="1"/>
+            <line x1="250" y1="250" x2="460" y2="250" stroke="rgba(253,246,227,0.4)" stroke-width="1"/>
+            <line x1="250" y1="250" x2="250" y2="460" stroke="rgba(253,246,227,0.4)" stroke-width="1"/>
+            <line x1="250" y1="250" x2="40" y2="250" stroke="rgba(253,246,227,0.4)" stroke-width="1"/>
+            <line x1="250" y1="250" x2="390" y2="110" stroke="rgba(253,246,227,0.3)" stroke-width="0.7"/>
+            <line x1="250" y1="250" x2="390" y2="390" stroke="rgba(253,246,227,0.3)" stroke-width="0.7"/>
+            <line x1="250" y1="250" x2="110" y2="390" stroke="rgba(253,246,227,0.3)" stroke-width="0.7"/>
+            <line x1="250" y1="250" x2="110" y2="110" stroke="rgba(253,246,227,0.3)" stroke-width="0.7"/>
+          </g>
+          <!-- RRR annotation -->
+          <text x="468" y="254" fill="rgba(76,138,80,0.35)" font-size="7" font-family="'Josefin Sans',sans-serif">RRR</text>
+          <!-- ORR annotation -->
+          <text x="412" y="254" fill="rgba(111,160,240,0.35)" font-size="7" font-family="'Josefin Sans',sans-serif">ORR</text>
+        </svg>
+
+        <div class="zone-ring rare" id="zRare" onclick="selectZone('rare')"></div>
+        <div class="zone-ring pure" id="zPure" onclick="selectZone('pure')"></div>
+        <div class="zone-ring cure" id="zCure" onclick="selectZone('cure')"></div>
+
+        <!-- physical rotary dial, sitting at the kiosk's centre -->
+        <div class="kiosk-dial" id="kioskDial">
+          <div class="kiosk-dial-grip">
+            <span></span><span></span><span></span>
+          </div>
+          <div class="kiosk-dial-marker" id="kioskDialMarker"></div>
+        </div>
+        <!-- the current zone's name, appears above the dial once selected -->
+        <div class="dial-active-label">
+          <span id="dialActiveCure" style="color:var(--cure);">CURE</span>
+          <span id="dialActivePure" style="color:var(--pure);">PURE</span>
+          <span id="dialActiveRare" style="color:var(--rare);">RARE</span>
+        </div>
+
+        <!-- LABELS -->
+        <div class="zone-label cure" id="lblCure">CURE</div>
+        <div class="zone-label pure" id="lblPure">PURE</div>
+        <div class="zone-label rare" id="lblRare">RARE</div>
+        <div class="ring-label orr">160km ORR</div>
+        <div class="ring-label rrr">360km RRR</div>
+
+        <!-- FLOAT TAGS — repositioned to stay inside their own ring -->
+        <div class="float-tag cure show" style="top:215px;left:150px;">Services Only</div>
+        <div class="float-tag cure" id="ftNetZero" style="top:215px;left:290px;">Net Zero</div>
+        <div class="float-tag pure" id="ftPure" style="top:112px;left:255px;">Manufacturing</div>
+        <div class="float-tag rare" id="ftRare" style="top:200px;left:22px;">Agri-Economy</div>
+      </div>
+</div>
+
+<div class="status-row" id="statusRow" style="display:flex;justify-content:center;margin-top:16px;"></div>
+
+<script>
+const zones = {
+  all: {
+    badge:'all-bg', badgeDot:'rgba(253,246,227,0.4)', badgeTxt:'OVERVIEW', badgeTxtColor:'rgba(253,246,227,0.6)',
+    head:'CURE · PURE · RARE', full:"India's First 3-Zone State Architecture",
+    desc:"Telangana is India's first and only state to divide its entire map into three distinct, sector-specific economic zones — creating a complete spatial architecture that links Hyderabad's urban core to the farthest rural districts in one coherent vision.",
+    sv1:'160km', sv1l:'ORR Boundary', sv2:'360km', sv2l:'RRR Boundary',
+    ptColor:'rgba(111,160,240,0.4)',
+    pts:["CURE (Core Urban Region Economy) — inside the 160km Outer Ring Road: services sector, Net Zero, world-class urban infrastructure","PURE (Peri Urban Region Economy) — between ORR and RRR 360km: manufacturing, industrial growth engines, MSME clusters","RARE (Rural Agri Region Economy) — beyond the RRR: agriculture, fisheries, forest-based livelihoods, handicrafts, eco-tourism","Together the three zones form a spatial foundation for productivity, regional equity and climate resilience","Aligned to this architecture: Investment Magnet chapter strengthens Telangana's position as a global investment powerhouse","All three zones connected by radial roads linking RRR and ORR"]
+  },
+  cure: {
+    badge:'cure-bg', badgeDot:'#6FA0F0', badgeTxt:'CURE', badgeTxtColor:'#6FA0F0',
+    head:'Core Urban Region Economy', full:"Services · Innovation · Net Zero · World-Class City",
+    desc:"CURE positions Hyderabad as a global hub for technology, DeepTech, AI, Industry 4.0, and advanced services. Inside the 160km Outer Ring Road — a services-sector-only metropolis committed to Net Zero.",
+    sv1:'160km', sv1l:'ORR Boundary', sv2:'Net Zero', sv2l:'Sustainability Target',
+    ptColor:'rgba(111,160,240,0.5)',
+    pts:["Global hub for DeepTech, AI, quantum computing, cybersecurity, gig-tech, aerospace, defence, tourism, media and entertainment","World-class knowledge hub: offshore campuses of renowned global universities, R&D centres for major corporations","T-Hub — Asia's largest startup incubator, anchoring India's startup ecosystem","Services sector ONLY — manufacturing excluded to maintain air quality and liveability","Net Zero commitment: first major Indian city to mitigate most known climate change risks","River Musi Rejuvenation: vibrant urban river, lakes restored, water grid completed","Bullet train connectivity: Hyderabad–Bengaluru and Hyderabad–Chennai corridors"]
+  },
+  pure: {
+    badge:'pure-bg', badgeDot:'#6FA26E', badgeTxt:'PURE', badgeTxtColor:'#6FA26E',
+    head:'Peri Urban Region Economy', full:"Manufacturing · Industry · MSME Clusters · Logistics",
+    desc:"PURE builds peri-urban growth corridors rooted in manufacturing, MSME clusters, and logistics. Located between the 160km ORR and the 360km Regional Ring Road — connecting rural and urban economies.",
+    sv1:'200km', sv1l:'Width of PURE Zone', sv2:'MSME', sv2l:'Cluster Focus',
+    ptColor:'rgba(76,138,80,0.5)',
+    pts:["Manufacturing focus zone: rooted in MSME clusters, logistics hubs, and agri-processing industries","Connects rural districts to Hyderabad's urban economy — bridging the urban-rural divide","Regional Ring Road (360km) being built to connect all key peri-urban areas and Tier 2 towns","Manufacturing zones between ORR and RRR with green power for agricultural farms","Integrated townships planned along major radial roads within the PURE zone","Youth skilling and apprenticeship programmes targeted at PURE zone demographics","Advanced skills training linked to manufacturing cluster requirements"]
+  },
+  rare: {
+    badge:'rare-bg', badgeDot:'#D9A441', badgeTxt:'RARE', badgeTxtColor:'#D9A441',
+    head:'Rural Agri Region Economy', full:"Agriculture · Green Economy · Agri-Enterprises · Eco-Tourism",
+    desc:"RARE elevates rural districts through agriculture, livestock, fisheries, forest-based livelihoods, handicrafts, and eco-tourism. Beyond the 360km Regional Ring Road — ensuring prosperity for every farmer.",
+    sv1:'33', sv1l:'Districts Covered', sv2:'2047', sv2l:'Prosperity Goal',
+    ptColor:'rgba(198,138,46,0.5)',
+    pts:["Agriculture modernisation: crop diversification, AgriTech, value-addition, and market access","Climate-resilient irrigation directly lifting farmer livelihoods — contributing to agrifood exports","Farmer Empowerment chapter: enhancing prosperity through crop diversification and AgriTech","Forest-based livelihoods, handicrafts, and eco-tourism as supplementary income streams","Green economy pathways: nature-based solutions, renewables, circularity for rural districts","Ambition: create one crore women millionaires through women-led enterprises in RARE zone","Net-Zero pathway: climate-smart agriculture advancing sustainability from the grassroots"]
+  }
+};
+
+let current = 'all';
+
+function selectZone(zone) {
+  current = zone;
+  const z = zones[zone];
+
+  // rotate the kiosk dial so its marker points at the selected zone
+  rotateDialTo(zone);
+
+  // show the current zone's name above the dial (nothing for "all")
+  document.getElementById('dialActiveCure').classList.toggle('show', zone==='cure');
+  document.getElementById('dialActivePure').classList.toggle('show', zone==='pure');
+  document.getElementById('dialActiveRare').classList.toggle('show', zone==='rare');
+
+  // zone rings
+  document.getElementById('zCure').classList.toggle('active', zone==='cure'||zone==='all');
+  document.getElementById('zPure').classList.toggle('active', zone==='pure'||zone==='all');
+  document.getElementById('zRare').classList.toggle('active', zone==='rare'||zone==='all');
+
+  // float tags
+  document.querySelectorAll('.float-tag').forEach(t => t.classList.remove('show'));
+  if(zone==='all'||zone==='cure') {
+    document.querySelectorAll('.float-tag.cure').forEach(t=>t.classList.add('show'));
+  }
+  if(zone==='all'||zone==='pure') document.getElementById('ftPure').classList.add('show');
+  if(zone==='all'||zone==='rare') document.getElementById('ftRare').classList.add('show');
+
+  // info fade
+  document.querySelectorAll('.fade').forEach(el => el.classList.add('fading'));
+  setTimeout(() => {
+    const badge = document.getElementById('zoneBadge');
+    badge.className = 'zone-badge fade ' + z.badge;
+    badge.innerHTML = `<div class="badge-dot" style="background:${z.badgeDot}"></div><div class="badge-text" style="color:${z.badgeTxtColor}">${z.badgeTxt}</div>`;
+
+    document.getElementById('zoneHead').textContent = z.head;
+    document.getElementById('zoneFull').textContent = z.full;
+    document.getElementById('zoneDesc').textContent = z.desc;
+    document.getElementById('sv1').textContent = z.sv1; document.getElementById('sv1').closest('.mini-stat').querySelector('.mini-lbl').textContent = z.sv1l;
+    document.getElementById('sv2').textContent = z.sv2; document.getElementById('sv2').closest('.mini-stat').querySelector('.mini-lbl').textContent = z.sv2l;
+    document.getElementById('sv1').style.color = z.badgeDot;
+    document.getElementById('sv2').style.color = z.badgeDot;
+
+    document.getElementById('ptsList').innerHTML = z.pts.slice(0, 3).map(p => `
+      <div class="pt">
+        <div class="pt-dot" style="background:${z.badgeDot}"></div>
+        <div class="pt-text">${p}</div>
+      </div>`).join('');
+
+    document.querySelectorAll('.fade').forEach(el => el.classList.remove('fading'));
+  }, 220);
+}
+
+// the kiosk dial: a physical rotary control at the centre of the circle
+// diagram. Its rotation angle IS the selection — drag it around and
+// whichever zone the marker points to becomes active.
+const ZONE_ANGLE = { all: 0, cure: 90, pure: 180, rare: 270 };
+let dialRotation = 0;
+
+function angleToZone(deg) {
+  const norm = ((deg % 360) + 360) % 360;
+  let best = 'all', bestDist = Infinity;
+  Object.entries(ZONE_ANGLE).forEach(([zone, a]) => {
+    const dist = Math.min(Math.abs(norm - a), 360 - Math.abs(norm - a));
+    if (dist < bestDist) { bestDist = dist; best = zone; }
+  });
+  return best;
+}
+
+function rotateDialTo(zone) {
+  const target = ZONE_ANGLE[zone];
+  // shortest path from current rotation to the target angle
+  let delta = ((target - dialRotation + 540) % 360) - 180;
+  dialRotation += delta;
+  document.getElementById('kioskDial').style.transform = `rotate(${dialRotation}deg)`;
+}
+
+function initKioskDial() {
+  const dial = document.getElementById('kioskDial');
+  let dragging = false;
+  let startPointerAngle = 0;
+  let startRotation = 0;
+
+  function pointerAngle(clientX, clientY) {
+    const rect = dial.getBoundingClientRect();
+    const cx = rect.left + rect.width / 2, cy = rect.top + rect.height / 2;
+    return Math.atan2(clientY - cy, clientX - cx) * 180 / Math.PI;
+  }
+
+  dial.addEventListener('pointerdown', (e) => {
+    dragging = true;
+    dial.classList.add('dragging');
+    dial.setPointerCapture(e.pointerId);
+    startPointerAngle = pointerAngle(e.clientX, e.clientY);
+    startRotation = dialRotation;
+  });
+  dial.addEventListener('pointermove', (e) => {
+    if (!dragging) return;
+    const now = pointerAngle(e.clientX, e.clientY);
+    dialRotation = startRotation + (now - startPointerAngle);
+    dial.style.transform = `rotate(${dialRotation}deg)`;
+  });
+  dial.addEventListener('pointerup', () => {
+    dragging = false;
+    dial.classList.remove('dragging');
+    selectZone(angleToZone(dialRotation));
+  });
+}
+
+initKioskDial();
+selectZone('all');
+
+// ---------- Remote control receiver ----------
+const TOPIC_BASE = 'hyd-experience-remote';
+const ZONE_ORDER = ['all', 'cure', 'pure', 'rare'];
+
+const remoteStatus = document.createElement('div');
+remoteStatus.id = 'remoteStatus';
+remoteStatus.style.cssText = 'display:flex;align-items:center;gap:6px;font-size:0.6rem;letter-spacing:0.15em;text-transform:uppercase;color:rgba(34,42,104,0.45);';
+remoteStatus.innerHTML = `<span id="remoteDot" style="width:7px;height:7px;border-radius:50%;background:#c9583f;transition:background 0.3s ease;"></span><span id="remoteStatusText">Remote: connecting…</span>`;
+document.getElementById('statusRow').appendChild(remoteStatus);
+
+const remoteDot = document.getElementById('remoteDot');
+const remoteStatusText = document.getElementById('remoteStatusText');
+
+const remoteScript = document.createElement('script');
+remoteScript.src = 'https://cdnjs.cloudflare.com/ajax/libs/mqtt/5.15.2/mqtt.min.js';
+remoteScript.onload = () => {
+  const remoteClient = mqtt.connect('wss://broker.hivemq.com:8884/mqtt', {
+    clientId: 'urbanexpansion-' + Math.random().toString(16).slice(2)
+  });
+  remoteClient.on('connect', () => {
+    remoteDot.style.background = '#3fae6a';
+    remoteStatusText.textContent = 'Remote: connected · ' + TOPIC_BASE;
+    remoteClient.subscribe(TOPIC_BASE + '/remote');
+  });
+  remoteClient.on('error', () => { remoteStatusText.textContent = 'Remote: connection error'; });
+  remoteClient.on('close', () => {
+    remoteDot.style.background = '#c9583f';
+    remoteStatusText.textContent = 'Remote: disconnected';
+  });
+
+  remoteClient.on('message', (topic, payloadBuf) => {
+    let msg;
+    try { msg = JSON.parse(payloadBuf.toString()); } catch (e) { return; }
+
+    // NAVIGATE — steps through All → Cure → Pure → Rare
+    if (msg.action === 'nav') {
+      const idx = ZONE_ORDER.indexOf(current);
+      const dir = msg.dir === 'prev' ? -1 : 1;
+      selectZone(ZONE_ORDER[(idx + dir + ZONE_ORDER.length) % ZONE_ORDER.length]);
+    }
+
+    // DIAL — the phone's 0-100 knob maps directly onto the 4 zones,
+    // same spirit as turning this half-dial by hand
+    if (msg.action === 'dial') {
+      const idx = Math.min(ZONE_ORDER.length - 1, Math.floor((msg.value / 100) * ZONE_ORDER.length));
+      selectZone(ZONE_ORDER[idx]);
+    }
+
+    // SELECT — confirms whichever zone is currently active (mostly a no-op
+    // here since the dial already applies its result live)
+    if (msg.action === 'select') {
+      selectZone(current);
+    }
+
+    // RESET — back to the All / overview state
+    if (msg.action === 'reset') {
+      selectZone('all');
+    }
+  });
+};
+document.head.appendChild(remoteScript);
+</script>
+</body>
+</html>

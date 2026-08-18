@@ -1,0 +1,266 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Hyderabad Transit Map</title>
+<link href="https://fonts.googleapis.com/css2?family=Playfair+Display:wght@600&family=Josefin+Sans:wght@300;400;600&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.min.css">
+<script src="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/mqtt/5.15.2/mqtt.min.js"></script>
+<style>
+  :root {
+    --navy:#222A68; --cream:#FDF6E3;
+    --metro:#e0524a; --mmts:#f2c94c; --bus:#4fd1c5;
+  }
+  * { margin:0; padding:0; box-sizing:border-box; }
+  body {
+    background: var(--cream);
+    font-family:'Josefin Sans',sans-serif;
+    color: var(--navy);
+    min-height:100vh;
+    display:flex; flex-direction:column; align-items:center;
+    padding:20px 20px 30px;
+  }
+  h1 {
+    font-family:'Playfair Display',serif; font-weight:600; font-size:1.4rem;
+    text-align:center; margin-bottom:6px;
+  }
+  .sub {
+    font-weight:300; color: rgba(34,42,104,0.65);
+    text-align:center; max-width:520px; line-height:1.5; margin-bottom:14px; font-size:0.74rem;
+  }
+
+  .map-shell {
+    width:100%; max-width:980px; border-radius:22px; overflow:hidden;
+    box-shadow:0 28px 64px rgba(34,42,104,0.3);
+    background:#0a0a0a;
+  }
+  #map { width:100%; height:400px; background:#0a0a0a; }
+  .leaflet-container { background:#0a0a0a; }
+
+  .dials-row {
+    width:100%; max-width:980px; margin-top:18px;
+    display:flex; justify-content:center; gap:18px; flex-wrap:wrap;
+  }
+  .dial {
+    display:flex; flex-direction:column; align-items:center; gap:7px;
+    cursor:pointer; user-select:none;
+  }
+  .dial-ring {
+    width:56px; height:56px; border-radius:50%;
+    background: radial-gradient(circle at 35% 30%, #2a2a2a, #111 70%);
+    border:2.5px solid rgba(255,255,255,0.08);
+    display:flex; align-items:center; justify-content:center;
+    position:relative;
+    transition: border-color 0.3s ease, box-shadow 0.3s ease;
+  }
+  .dial-led {
+    width:12px; height:12px; border-radius:50%;
+    background: #333;
+    transition: background 0.3s ease, box-shadow 0.3s ease;
+  }
+  .dial.on .dial-ring { border-color: var(--dial-color); box-shadow: 0 0 22px var(--dial-color); }
+  .dial.on .dial-led { background: var(--dial-color); box-shadow: 0 0 12px var(--dial-color); }
+  .dial-label {
+    font-size:0.62rem; letter-spacing:0.1em; text-transform:uppercase; text-align:center;
+    color: rgba(34,42,104,0.75); max-width:100px; line-height:1.4;
+  }
+  .dial.on .dial-label { color: var(--navy); font-weight:600; }
+
+  .legend-note {
+    font-size:0.62rem; color: rgba(34,42,104,0.45); text-align:center;
+    max-width:560px; line-height:1.7; margin-top:24px;
+  }
+
+  .leaflet-popup-content-wrapper, .leaflet-popup-tip {
+    background: #17171c; color: #f3ead2;
+  }
+  .leaflet-popup-content { font-family:'Josefin Sans',sans-serif; font-size:0.78rem; margin:10px 14px; }
+  .leaflet-popup-close-button { color: rgba(243,234,210,0.6) !important; }
+</style>
+</head>
+<body>
+
+<h1>Hyderabad — Transit Layers</h1>
+<div class="sub">Tap a dial to light up that network on the map. Click any line for its route.</div>
+<div id="remoteStatus" style="display:flex;align-items:center;gap:6px;margin-bottom:12px;font-size:0.6rem;letter-spacing:0.15em;text-transform:uppercase;color:rgba(34,42,104,0.45);">
+  <span id="remoteDot" style="width:7px;height:7px;border-radius:50%;background:#c9583f;transition:background 0.3s ease;"></span>
+  <span id="remoteStatusText">Remote: connecting…</span>
+</div>
+
+<div class="map-shell">
+  <div id="map"></div>
+</div>
+
+<div class="dials-row" id="dialsRow"></div>
+
+
+<script>
+const map = L.map('map', { zoomControl: true, attributionControl: false }).setView([17.415, 78.460], 12.4);
+
+L.tileLayer('https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png', {
+  maxZoom: 19,
+  attribution: '&copy; OpenStreetMap &copy; CARTO'
+}).addTo(map);
+
+function glowLine(coords, color, opts = {}) {
+  const group = L.layerGroup();
+  L.polyline(coords, { color: color, weight: opts.weight ? opts.weight * 3.2 : 12, opacity: 0.18, lineCap: 'round', lineJoin: 'round', dashArray: opts.dash || null, interactive: false }).addTo(group);
+  const core = L.polyline(coords, { color: color, weight: opts.weight || 3.4, opacity: 0.95, lineCap: 'round', lineJoin: 'round', dashArray: opts.dash || null });
+  if (opts.route) {
+    core.bindPopup(`<strong>${opts.route}</strong>`, { closeButton: true, className: 'route-popup' });
+    core.on('mouseover', function(){ this.setStyle({ weight: (opts.weight || 3.4) + 2 }); });
+    core.on('mouseout', function(){ this.setStyle({ weight: opts.weight || 3.4 }); });
+  }
+  core.addTo(group);
+  return group;
+}
+
+// ---------------- METRO ----------------
+const redLine = [
+  [17.4933,78.3915],[17.4935,78.3970],[17.49378,78.401795],[17.4849,78.4108],[17.4739,78.4245],
+  [17.4685,78.4295],[17.4621,78.4294],[17.4550,78.4350],[17.4490,78.4400],[17.4410,78.4440],
+  [17.4348028,78.4480111],[17.4275,78.4520],[17.4210,78.4570],[17.4110,78.4630],[17.4020,78.4660],
+  [17.3980,78.4700],[17.3924,78.4675],[17.3890,78.4720],[17.3830,78.4760],[17.378055,78.480005],
+  [17.3720,78.4970],[17.3690,78.5040],[17.3660,78.5120],[17.3687,78.5247],[17.3630,78.5350],
+  [17.3560,78.5430],[17.348426,78.550959]
+];
+const blueLine = [
+  [17.3833,78.5550],[17.4000,78.5590],[17.4040,78.5530],[17.4160,78.5450],[17.4210,78.5390],
+  [17.4280,78.5330],[17.4310,78.5220],[17.4330,78.5090],[17.4400,78.4990],[17.4430,78.4950],
+  [17.4410,78.4820],[17.4400,78.4720],[17.43750,78.45667],[17.4348028,78.4480111],[17.4330,78.4380],
+  [17.4300,78.4280],[17.4270,78.4180],[17.4300,78.4080],[17.4330,78.3980],[17.4400,78.3910],
+  [17.4330,78.3830],[17.4435,78.3772],[17.4422,78.3773]
+];
+const greenLine = [
+  [17.4400,78.4990],[17.4350,78.4990],[17.4180,78.4880],[17.4050,78.4870],[17.3950,78.4870],
+  [17.3920,78.4830],[17.3890,78.4800],[17.378055,78.480005]
+];
+const metroLayer = L.layerGroup([
+  glowLine(redLine, '#e0524a', { route: 'Red Line: Miyapur ↔ LB Nagar' }),
+  glowLine(blueLine, '#4a90e0', { route: 'Blue Line: Nagole ↔ Raidurg' }),
+  glowLine(greenLine, '#5fd68a', { route: 'Green Line: JBS Parade Ground ↔ MGBS' })
+]);
+
+// ---------------- MMTS ----------------
+const mmtsLine = [
+  [17.4933,78.3193],[17.485,78.365],[17.4337,78.5016],[17.3924,78.4675],
+  [17.3775,78.5011],[17.3720,78.4970],[17.3650,78.4870],[17.3378,78.4796]
+];
+const mmtsLayer = glowLine(mmtsLine, '#f2c94c', { dash: '1,10', weight: 3, route: 'MMTS: Lingampally ↔ Falaknuma' });
+
+// ---------------- BUS (illustrative major corridors only) ----------------
+const busCorridor1 = [[17.4337,78.5016],[17.4270,78.4880],[17.4180,78.4750],[17.3924,78.4675]]; // Secunderabad – Tank Bund – Nampally
+const busCorridor2 = [[17.4348,78.4480],[17.4400,78.4100],[17.4435,78.3772]]; // Ameerpet – Jubilee Hills – HITEC City
+const busCorridor3 = [[17.378,78.480],[17.363,78.500],[17.348,78.551]]; // MGBS – Dilsukhnagar – LB Nagar
+const busLayer = L.layerGroup([
+  glowLine(busCorridor1, '#4fd1c5', { weight: 2.6, route: 'Bus corridor: Secunderabad ↔ Nampally' }),
+  glowLine(busCorridor2, '#4fd1c5', { weight: 2.6, route: 'Bus corridor: Ameerpet ↔ HITEC City' }),
+  glowLine(busCorridor3, '#4fd1c5', { weight: 2.6, route: 'Bus corridor: MGBS ↔ LB Nagar' })
+]);
+
+// ---------------- ORR — Outer Ring Road (schematic ring, not engineered alignment) ----------------
+const orrRing = [
+  [17.41,78.34],[17.40,78.32],[17.44,78.29],[17.53,78.26],[17.58,78.30],[17.60,78.35],
+  [17.63,78.42],[17.63,78.48],[17.60,78.55],[17.54,78.61],[17.45,78.68],[17.36,78.67],
+  [17.30,78.65],[17.23,78.58],[17.20,78.50],[17.24,78.43],[17.28,78.40],[17.31,78.40],
+  [17.36,78.37],[17.41,78.34]
+];
+const orrLayer = glowLine(orrRing, '#ff9f6e', { weight: 2.4, route: 'Outer Ring Road (ORR) — 158 km, schematic path' });
+
+// ---------------- IRR — Inner Ring Road (schematic ring) ----------------
+const irrRing = [
+  [17.395,78.438],[17.418,78.442],[17.428,78.452],[17.416,78.470],[17.405,78.487],
+  [17.395,78.495],[17.380,78.497],[17.362,78.483],[17.365,78.462],[17.378,78.445],[17.395,78.438]
+];
+const irrLayer = glowLine(irrRing, '#ff6ea8', { weight: 4.5, route: 'Inner Ring Road (IRR) — schematic path' });
+
+// ---------------- Major highways (schematic direction through the city) ----------------
+const nh44 = [[17.63,78.48],[17.50,78.48],[17.385,78.487],[17.28,78.47],[17.10,78.45]]; // Nagpur ↔ Bangalore direction
+const nh65 = [[17.30,78.30],[17.385,78.42],[17.42,78.50],[17.44,78.60],[17.45,78.70]]; // Pune ↔ Vijayawada direction
+const nh163 = [[17.385,78.487],[17.44,78.55],[17.50,78.62],[17.55,78.70]]; // Warangal direction
+const highwayLayer = L.layerGroup([
+  glowLine(nh44, '#c9a9ff', { weight: 2.2, route: 'NH44 — Nagpur ↔ Bangalore direction' }),
+  glowLine(nh65, '#c9a9ff', { weight: 2.2, route: 'NH65 — Pune ↔ Vijayawada direction' }),
+  glowLine(nh163, '#c9a9ff', { weight: 2.2, route: 'NH163 — Warangal direction' })
+]);
+
+// ---------------- Dials UI ----------------
+const LAYERS = [
+  { id:'metro', label:'Metro', color:'#e0524a', layer: metroLayer, on:true },
+  { id:'mmts', label:'MMTS', color:'#f2c94c', layer: mmtsLayer, on:false },
+  { id:'bus', label:'Bus Corridors', color:'#4fd1c5', layer: busLayer, on:false },
+  { id:'orr', label:'ORR', color:'#ff9f6e', layer: orrLayer, on:false },
+  { id:'irr', label:'IRR', color:'#ff6ea8', layer: irrLayer, on:false },
+  { id:'highways', label:'Major Highways', color:'#c9a9ff', layer: highwayLayer, on:false },
+];
+
+const dialsRow = document.getElementById('dialsRow');
+const dialEls = [];
+function toggleLayer(idx, forceOn) {
+  const L_ = LAYERS[idx];
+  L_.on = (forceOn === undefined) ? !L_.on : forceOn;
+  dialEls[idx].classList.toggle('on', L_.on);
+  if (L_.on) { L_.layer.addTo(map); } else { map.removeLayer(L_.layer); }
+}
+LAYERS.forEach((L_, idx) => {
+  const dial = document.createElement('div');
+  dial.className = 'dial' + (L_.on ? ' on' : '');
+  dial.style.setProperty('--dial-color', L_.color);
+  dial.innerHTML = `<div class="dial-ring"><div class="dial-led"></div></div><div class="dial-label">${L_.label}</div>`;
+  dial.addEventListener('click', () => toggleLayer(idx));
+  dialsRow.appendChild(dial);
+  dialEls.push(dial);
+  if (L_.on) L_.layer.addTo(map);
+});
+
+// ---------- Remote control receiver ----------
+let focusIdx = 0;
+const TOPIC_BASE = 'hyd-experience-remote';
+const remoteDot = document.getElementById('remoteDot');
+const remoteStatusText = document.getElementById('remoteStatusText');
+
+const remoteClient = mqtt.connect('wss://broker.hivemq.com:8884/mqtt', {
+  clientId: 'transitmap-' + Math.random().toString(16).slice(2)
+});
+remoteClient.on('connect', () => {
+  remoteDot.style.background = '#3fae6a';
+  remoteStatusText.textContent = 'Remote: connected · ' + TOPIC_BASE;
+  remoteClient.subscribe(TOPIC_BASE + '/remote');
+});
+remoteClient.on('error', () => { remoteStatusText.textContent = 'Remote: connection error'; });
+remoteClient.on('close', () => {
+  remoteDot.style.background = '#c9583f';
+  remoteStatusText.textContent = 'Remote: disconnected';
+});
+
+remoteClient.on('message', (topic, payloadBuf) => {
+  let msg;
+  try { msg = JSON.parse(payloadBuf.toString()); } catch (e) { return; }
+
+  // NAVIGATE — moves focus between the six dials without changing what's lit
+  if (msg.action === 'nav') {
+    const dir = msg.dir === 'prev' ? -1 : 1;
+    focusIdx = (focusIdx + dir + LAYERS.length) % LAYERS.length;
+  }
+
+  // DIAL — same idea, but the phone's 0-100 knob picks focus directly by position
+  if (msg.action === 'dial') {
+    focusIdx = Math.min(LAYERS.length - 1, Math.floor((msg.value / 100) * LAYERS.length));
+  }
+
+  // SELECT — actually switches the focused layer on or off, this is the "press the dial" action
+  if (msg.action === 'select') {
+    toggleLayer(focusIdx);
+  }
+
+  // RESET — back to the default view: Metro on, everything else off
+  if (msg.action === 'reset') {
+    LAYERS.forEach((L_, i) => toggleLayer(i, i === 0));
+  }
+});
+</script>
+
+</body>
+</html>
